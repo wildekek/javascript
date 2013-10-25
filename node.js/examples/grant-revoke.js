@@ -55,7 +55,7 @@ Client Test - Access Denied
 function publish_expected_fail() {
     log('publish_expected_fail');
     pubnub.publish({
-        channel  : 'foo',
+        channel  : channel,
         message  : 'test-data',
         error    : proceed
     });

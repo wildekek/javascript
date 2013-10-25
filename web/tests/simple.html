@@ -1,0 +1,19 @@
+<script src=../pubnub.js></script>
+<script>(function(){
+
+console.log('!!!');
+
+var pn = PUBNUB.init({
+    ha            : 5,
+    publish_key   : 'demo',
+    subscribe_key : 'demo',
+});
+
+pn.subscribe({
+    channel : 'multi',
+    message : function(msg,env,ch) {
+        console.log( msg, JSON.stringify(env), ch );
+    }
+});
+
+})();</script>

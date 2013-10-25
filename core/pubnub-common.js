@@ -5,6 +5,7 @@ var NOW             = 1
 ,   DEF_WINDOWING   = 10     // MILLISECONDS.
 ,   DEF_TIMEOUT     = 10000  // MILLISECONDS.
 ,   DEF_SUB_TIMEOUT = 310    // SECONDS.
+,   DUP_CLEAN       = 400    // SECONDS.
 ,   DEF_KEEPALIVE   = 60     // SECONDS (FOR TIMESYNC).
 ,   SECOND          = 1000   // A THOUSAND MILLISECONDS.
 ,   URLBIT          = '/'
@@ -183,6 +184,131 @@ function ready() { timeout( function() {
 }, SECOND ); }
 
 function PN_API(setup) {
+    var HA              = (+setup['ha'] || 1)
+    ,   HA              = HA > 5 ? 5 : HA
+    ,   HA              = HA < 1 ? 1 : HA
+    ,   connections     = []
+    ,   deduplicates    = {}
+    ,   ORIGINS         = [
+                   setup['origin'] ||
+                  'pubsub.pubnub.com',
+            'pubsub-naatl.pubnub.com',
+             'pubsub-emea.pubnub.com',
+            'pubsub-napac.pubnub.com',
+            'pubsub-saatl.pubnub.com',
+             'pubsub-apac.pubnub.com',
+            'pubsub-namer.pubnub.com',
+            'pubsub-latam.pubnub.com',
+             'pubsub-euro.pubnub.com',
+              'pubsub-lta.pubnub.com',
+             'pubsub-ncsa.pubnub.com',
+             'pubsub-japa.pubnub.com',
+               'pubsub-ap.pubnub.com',
+              'pubsub-apj.pubnub.com',
+            'pubsub-japac.pubnub.com',
+              'pubsub-lac.pubnub.com',
+               'pubsub-na.pubnub.com',
+            'pubsub-noram.pubnub.com',
+             'pubsub-amer.pubnub.com',
+              'pubsub-ams.pubnub.com',
+             'pubsub-nala.pubnub.com',
+             'pubsub-alps.pubnub.com'
+    ];
+
+    // Cleanup Duplicates
+    clean_dupes();
+    function clean_dupes() {
+        timeout( clean_dupes, SECOND * DUP_CLEAN );
+        each( deduplicates, function(dup) {
+            if (deduplicates[dup] + SECOND * DUP_CLEAN < rnow())
+                delete deduplicates[dup];
+        } );
+    }
+
+    // Connect
+    for (var i = 0; HA > i; i++) {
+        setup['origin'] = ORIGINS[i];
+        connections.push(_PN_API(setup));
+    }
+
+    // Return Controls
+    var SELF = _PN_API(setup);
+    SELF['publish'] = function( args, callback ) {
+        var first = false
+        ,   u     = uuid();
+
+        function cb(info) {
+            if (first) return;
+            first = true;
+            (args['callback'] || callback || function(){})(info)
+        }
+
+        // First Original Publish
+        connections[0].publish( args, cb );
+
+        // Update Envelope
+        args['channel'] = args['channel'] + '-ha';
+        args['message'] = {
+            'u'       : u,
+            'payload' : args['message']
+        };
+
+        // HA Publishes
+        each( connections, function(conn) {
+            args['message']['o'] = conn.origin();
+            conn.publish( args, cb );
+        } );
+    };
+
+    SELF['subscribe'] = function( args, callback ) {
+        var channel  = args['channel']
+        ,   channels = [];
+
+        function capture( message, envelope, channel, rx ) {
+            // Deduplication
+            if (typeof message === 'object' && 'u' in message) {
+                var message_id = message.u;
+
+                // Is Duplicate?
+                if (message_id in deduplicates) return;
+                else deduplicates[message_id] = rnow();
+
+                // Set Origin RX
+                message['rx'] = rx;
+
+                // Send Payload to User Callback
+                message = message['payload'];
+            }
+
+            // User Callback
+            (args['callback'] || args['message'] || callback || function(){})(
+                message,
+                envelope,
+                channel
+            )
+        }
+
+        // HA Channels
+        each( (channel.join?channel.join(','):''+channel).split(','),
+        function(chan) {
+            channels.push(chan + '-ha');
+        } );
+
+        // Only if HA is Set
+        if (HA > 1) args['channel'] = channels;
+
+        // HA Subscribes
+        each( connections, function(conn) {
+            conn.subscribe( args, function( m, e, c ) {
+                capture( m, e, c, conn.origin() );
+            } );
+        } );
+    };
+
+    return SELF;
+}
+
+function _PN_API(setup) {
     var SUB_WINDOWING =  +setup['windowing']   || DEF_WINDOWING
     ,   SUB_TIMEOUT   = (+setup['timeout']     || DEF_SUB_TIMEOUT) * SECOND
     ,   KEEPALIVE     = (+setup['keepalive']   || DEF_KEEPALIVE)   * SECOND
@@ -194,7 +320,8 @@ function PN_API(setup) {
     ,   PNSDK         = setup['PNSDK']         || ''
     ,   hmac_SHA256   = setup['hmac_SHA256']
     ,   SSL           = setup['ssl']            ? 's' : ''
-    ,   ORIGIN        = 'http'+SSL+'://'+(setup['origin']||'pubsub.pubnub.com')
+    ,   ORG_ORIGIN    = setup['origin']
+    ,   ORIGIN        = 'http' + SSL + '://' + ORG_ORIGIN
     ,   STD_ORIGIN    = nextorigin(ORIGIN)
     ,   SUB_ORIGIN    = nextorigin(ORIGIN)
     ,   CONNECT       = function(){}
@@ -870,6 +997,10 @@ function PN_API(setup) {
             args['read']  = false;
             args['write'] = false;
             SELF['grant']( args, callback );
+        },
+
+        'origin' : function() {
+            return ORG_ORIGIN;
         },
 
         // Expose PUBNUB Functions
