@@ -269,11 +269,13 @@ function PN_API(setup) {
         function capture( message, envelope, channel, rx ) {
             // Deduplication
             if (typeof message === 'object' && 'u' in message) {
-                var message_id = message.u;
+                var message_id = message.u
+                ,   leave      = false;
 
                 // Is Duplicate?
-                if (message_id in deduplicates) return;
-                else deduplicates[message_id] = rnow();
+                if (message_id in deduplicates) leave = true;
+                deduplicates[message_id] = rnow();
+                if (leave) return;
 
                 // Set Origin RX
                 message['rx'] = rx;
