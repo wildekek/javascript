@@ -5,7 +5,7 @@ var NOW             = 1
 ,   DEF_WINDOWING   = 10     // MILLISECONDS.
 ,   DEF_TIMEOUT     = 10000  // MILLISECONDS.
 ,   DEF_SUB_TIMEOUT = 310    // SECONDS.
-,   DUP_CLEAN       = 400    // SECONDS.
+,   DUP_CLEAN       = 700    // SECONDS.
 ,   DEF_KEEPALIVE   = 60     // SECONDS (FOR TIMESYNC).
 ,   SECOND          = 1000   // A THOUSAND MILLISECONDS.
 ,   URLBIT          = '/'
@@ -245,17 +245,13 @@ function PN_API(setup) {
     // Return Controls
     var SELF = _PN_API(setup);
     SELF['publish'] = function( args, callback ) {
-        var first = false
-        ,   u     = uuid();
-
+        var u = uuid();
         function cb(info) {
-            if (first) return;
-            first = true;
             (args['callback'] || callback || function(){})(info)
         }
 
         // First Original Publish
-        connections[0].publish( args, cb );
+        connections[0]['publish']( args, cb );
 
         // Update Envelope
         args['channel'] = args['channel'] + '-ha';
@@ -266,8 +262,8 @@ function PN_API(setup) {
 
         // HA Publishes
         each( connections, function(conn) {
-            args['message']['o'] = conn.origin();
-            conn.publish( args, cb );
+            args['message']['o'] = conn['origin']();
+            conn['publish']( args, cb );
         } );
     };
 
@@ -278,7 +274,7 @@ function PN_API(setup) {
         function capture( message, envelope, channel, rx ) {
             // Deduplication
             if (typeof message === 'object' && 'u' in message) {
-                var message_id = message.u
+                var message_id = message['u']
                 ,   leave      = false;
 
                 // Is Duplicate?
@@ -312,8 +308,8 @@ function PN_API(setup) {
 
         // HA Subscribes
         each( connections, function(conn) {
-            conn.subscribe( args, function( m, e, c ) {
-                capture( m, e, c, conn.origin() );
+            conn['subscribe']( args, function( m, e, c ) {
+                capture( m, e, c, conn['origin']() );
             } );
         } );
     };
