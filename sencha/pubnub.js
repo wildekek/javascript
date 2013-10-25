@@ -226,8 +226,19 @@ function PN_API(setup) {
         } );
     }
 
-    // Connect
-    for (var i = 0; HA > i; i++) {
+    // Connect First
+    setup['origin'] = ORIGINS[0];
+    connections.push(_PN_API(setup));
+
+    // Prevent Multi-callbacks
+    setup['idle']       = function(){};
+    setup['error']      = function(){};
+    setup['connect']    = function(){};
+    setup['disconnect'] = function(){};
+    setup['reconnect']  = function(){};
+
+    // Connect Remaining
+    for (var i = 1; HA > i; i++) {
         setup['origin'] = ORIGINS[i];
         connections.push(_PN_API(setup));
     }
