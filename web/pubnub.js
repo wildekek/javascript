@@ -1073,7 +1073,7 @@ function _PN_API(setup) {
                 'channel'   : encode(channel),
                 'timestamp' : timestamp
             };
-            if (ttl > -1) data['ttl'] = ttl
+            if (ttl > -1) data['ttl'] = ttl;
             if (auth_key) data['auth'] = encode(auth_key);
 
             xdr({

@@ -3,17 +3,25 @@
 
 console.log('Starting Test');
 
-var pn = PUBNUB.init({
-    ha            : 5,
+var channel = 'multi'
+,   pn      = PUBNUB.init({
+    ha            : 10,
     publish_key   : 'demo',
     subscribe_key : 'demo',
 });
 
 pn.subscribe({
-    channel : 'multi',
-    message : function(msg,env,ch) {
+    channel : channel,
+    message : function( msg, env, ch ) {
         console.log( msg, JSON.stringify(env), ch );
     }
 });
+
+setInterval( function() {
+    pn.publish({
+        channel : channel,
+        message : { stephen : 'stephen', date : new Date() }
+    });
+}, 1000 );
 
 })();</script>
