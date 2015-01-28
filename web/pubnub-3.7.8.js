@@ -149,21 +149,62 @@
         JSON['parse'] = function (text) {return eval('('+text+')')};
     }
 }());
-var NOW             = 1
-,   READY           = false
-,   READY_BUFFER    = []
-,   PRESENCE_SUFFIX = '-pnpres'
-,   DEF_WINDOWING   = 10     // MILLISECONDS.
-,   DEF_TIMEOUT     = 10000  // MILLISECONDS.
-,   DEF_SUB_TIMEOUT = 310    // SECONDS.
-,   DEF_KEEPALIVE   = 60     // SECONDS (FOR TIMESYNC).
-,   SECOND          = 1000   // A THOUSAND MILLISECONDS.
-,   URLBIT          = '/'
-,   PARAMSBIT       = '&'
-,   PRESENCE_HB_THRESHOLD = 5
-,   PRESENCE_HB_DEFAULT  = 30
-,   SDK_VER         = '3.7.8'
-,   REPL            = /{([\w\-]+)}/g;
+var NOW                     = 1
+,   READY                   = false
+,   READY_BUFFER            = []
+,   PRESENCE_SUFFIX         = '-pnpres'
+,   DEF_WINDOWING           = 10     // MILLISECONDS.
+,   DEF_TIMEOUT             = 10000  // MILLISECONDS.
+,   DEF_SUB_TIMEOUT         = 310    // SECONDS.
+,   DEF_KEEPALIVE           = 60     // SECONDS (FOR TIMESYNC).
+,   SECOND                  = 1000   // A THOUSAND MILLISECONDS.
+,   URLBIT                  = '/'
+,   PARAMSBIT               = '&'
+,   PRESENCE_HB_THRESHOLD   = 5
+,   PRESENCE_HB_DEFAULT     = 30
+,   SDK_VER                 = '3.7.8'
+,   CONNECTION_STATES       =   {
+                                    'EXPECTED_DISCONNECTED'     : 1,
+                                    'UNEXPECTED_DISCONNECTED'   : 2,
+                                    'CONNECTED'                 : 3 
+                                }
+,   REPL                    = /{([\w\-]+)}/g;
+
+
+var CONNECTION_STATE_MACHINE = {
+    1 : {
+        0 : {
+            'state'     : CONNECTION_STATES['EXPECTED_DISCONNECTED'],
+            'callback'  : 0
+        },
+        1 : {
+            'state'     : CONNECTION_STATES['CONNECTED'],
+            'callback'  : 'connect'
+        }
+    },
+    2 : {
+        0 : {
+            'state'     : CONNECTION_STATES['UNEXPECTED_DISCONNECTED'],
+            'callback'  : 0
+        },
+        1 : {
+            'state'     : CONNECTION_STATES['CONNECTED'],
+            'callback'  : 'reconnect'
+        }
+    },
+    3 : {
+        0 : {
+            'state'     : CONNECTION_STATES['UNEXPECTED_DISCONNECTED'],
+            'callback'  : 'disconnect'
+        },
+        1 : {
+            'state'     : CONNECTION_STATES['CONNECTED'],
+            'callback'  : 0
+        }
+    }
+
+};
+
 
 /**
  * UTILITIES
@@ -1273,15 +1314,16 @@ function PN_API(setup) {
 
                     // Store Channel State
                     CHANNELS[SUB_CHANNEL = channel] = {
-                        name         : channel,
-                        connected    : settings.connected,
-                        disconnected : settings.disconnected,
-                        subscribed   : 1,
-                        callback     : SUB_CALLBACK = callback,
-                        'cipher_key' : args['cipher_key'],
-                        connect      : connect,
-                        disconnect   : disconnect,
-                        reconnect    : reconnect
+                        name                : channel,
+                        connection_state    : CONNECTION_STATES.EXPECTED_DISCONNECTED,
+                        connected           : settings.connected,
+                        disconnected        : settings.disconnected,
+                        subscribed          : 1,
+                        callback            : SUB_CALLBACK = callback,
+                        'cipher_key'        : args['cipher_key'],
+                        connect             : connect,
+                        disconnect          : disconnect,
+                        reconnect           : reconnect
                     };
 
                     if (state) {
@@ -1329,6 +1371,7 @@ function PN_API(setup) {
                     var settings = CHANNEL_GROUPS[channel_group] || {};
 
                     CHANNEL_GROUPS[channel_group] = {
+                        connection_state    : CONNECTION_STATES.EXPECTED_DISCONNECTED,
                         name         : channel_group,
                         connected    : settings.connected,
                         disconnected : settings.disconnected,
@@ -1388,34 +1431,25 @@ function PN_API(setup) {
                     }, SECOND );
                 }
 
-                // Disconnect & Reconnect
+                _update_connection_states_and_invoke_callbacks((success)?1:0);
+
+            }
+
+            function _update_connection_states_and_invoke_callbacks(connected){
+
+                // Connect
                 each_channel(function(channel){
-                    // Reconnect
-                    if (success && channel.disconnected) {
-                        channel.disconnected = 0;
-                        return channel.reconnect(channel.name);
-                    }
+                    var cb = channel[CONNECTION_STATE_MACHINE[channel.connection_state][connected]['callback']]
+                    channel.connection_state = CONNECTION_STATE_MACHINE[channel.connection_state][connected]['state'];
+                    cb && cb(channel.name);
 
-                    // Disconnect
-                    if (!success && !channel.disconnected) {
-                        channel.disconnected = 1;
-                        channel.disconnect(channel.name);
-                    }
                 });
-                
-                // Disconnect & Reconnect for channel groups
-                each_channel_group(function(channel_group){
-                    // Reconnect
-                    if (success && channel_group.disconnected) {
-                        channel_group.disconnected = 0;
-                        return channel_group.reconnect(channel_group.name);
-                    }
 
-                    // Disconnect
-                    if (!success && !channel_group.disconnected) {
-                        channel_group.disconnected = 1;
-                        channel_group.disconnect(channel_group.name);
-                    }
+                // Connect for channel groups
+                each_channel_group(function(channel_group){
+                    var cb = channel_group[CONNECTION_STATE_MACHINE[channel_group.connection_state][connected]['callback']];
+                    channel_group.connection_state = CONNECTION_STATE_MACHINE[channel_group.connection_state][connected]['state'];
+                    cb && cb(channel_group.name);
                 });
             }
 
@@ -1486,28 +1520,9 @@ function PN_API(setup) {
                                     SUB_RESTORE              &&
                                     db['get'](SUBSCRIBE_KEY) || messages[1];
 
-                        /*
-                        // Connect
-                        each_channel_registry(function(registry){
-                            if (registry.connected) return;
-                            registry.connected = 1;
-                            registry.connect(channel.name);
-                        });
-                        */
 
-                        // Connect
-                        each_channel(function(channel){
-                            if (channel.connected) return;
-                            channel.connected = 1;
-                            channel.connect(channel.name);
-                        });
+                        _update_connection_states_and_invoke_callbacks(1);
 
-                        // Connect for channel groups
-                        each_channel_group(function(channel_group){
-                            if (channel_group.connected) return;
-                            channel_group.connected = 1;
-                            channel_group.connect(channel_group.name);
-                        });
 
                         if (RESUMED && !SUB_RESTORE) {
                                 TIMETOKEN = 0;
