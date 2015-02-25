@@ -81,20 +81,39 @@ function xdr( setup ) {
     ,   failed   = 0
     ,   complete = 0
     ,   loaded   = 0
+    ,   payload
+    ,   url
     ,   mode     = setup['mode'] || 'GET'
     ,   data     = setup['data'] || {}
     ,   xhrtme   = setup.timeout || DEF_TIMEOUT
     ,   body = ''
+    ,   http_data = {}
+    ,   add_request_data = function(r) {
+            r['http_request_method'] = mode;
+            r['http_request_url'] = url;
+            if (payload.length) r['http_request_data'] = payload;
+            return r;
+    }
     ,   finished = function() {
             if (loaded) return;
                 loaded = 1;
 
             clearTimeout(timer);
-            try       { response = JSON['parse'](body); }
-            catch (r) { return done(1); }
-            success(response);
+            http_data['http_response_status']   = 200;
+
+            try {
+                response = JSON['parse'](body);
+            }
+            catch (r) {
+                http_data['http_response'] = body;
+                return done(1, http_data)
+            }
+
+            http_data['http_response']          = response;
+            success(response, http_data);
+
         }
-    ,   done    = function(failed, response) {
+    ,   done    = function(failed, response, http_data) {
             if (complete) return;
                 complete = 1;
 
@@ -107,20 +126,27 @@ function xdr( setup ) {
                 request.abort && request.abort();
                 request = null;
             }
-            failed && fail(response);
+            failed && fail(response, http_data);
         }
-        ,   timer  = timeout( function(){done(1);} , xhrtme );
+        ,   timer  = timeout( function(){
+                http_data['category'] = 'timeout';
+                done(1, http_data)
+            } , xhrtme );
 
     data['pnsdk'] = PNSDK;
 
     var options = {};
     var headers = {};
-    var payload = '';
+    payload = '';
 
     if (mode == 'POST')
         payload = decodeURIComponent(setup.url.pop());
 
-    var url = build_url( setup.url, data );
+    url = build_url( setup.url, data );
+    console.log(mode + ' : ' + url);
+    add_request_data(http_data);
+
+
     if (!ssl) ssl = (url.split('://')[0] == 'https')?true:false;
 
     url = '/' + url.split('/').slice(3).join('/');
@@ -140,23 +166,28 @@ function xdr( setup ) {
     try {
         request = (ssl ? https : http)['request'](options, function(response) {
             response.setEncoding('utf8');
-            response.on( 'error', function(){done(1, body || { "error" : "Network Connection Error"})});
-            response.on( 'abort', function(){done(1, body || { "error" : "Network Connection Error"})});
+            response.on( 'error', function(){done(1, http_data)});
+            response.on( 'abort', function(){done(1, http_data)});
             response.on( 'data', function (chunk) {
                 if (chunk) body += chunk;
             } );
             response.on( 'end', function(){
                 var statusCode = response.statusCode;
-
+                http_data['http_response_status'] = statusCode;
+                http_data['http_response'] = body;
                 switch(statusCode) {
                     case 401:
                     case 402:
                     case 403:
+                        http_data['category'] = 'access_denied';
                         try {
                             response = JSON['parse'](body);
-                            done(1,response);
+                            http_data['http_response'] = response;
+                            done(1, http_data);
                         }
-                        catch (r) { return done(1, body); }
+                        catch (r) {
+                            return done(1, http_data);
+                        }
                         return;
                     default:
                         break;
@@ -166,7 +197,7 @@ function xdr( setup ) {
         });
         request.timeout = xhrtme;
         request.on( 'error', function() {
-            done( 1, {"error":"Network Connection Error"} );
+            done( 1, http_data );
         } );
 
         if (mode == 'POST') request.write(payload);

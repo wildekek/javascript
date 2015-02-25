@@ -11,23 +11,29 @@ var pubnub = require("./../pubnub.js").init({
     subscribe_key : "demo"
 });
 
+var pubnub_pam = require("./../pubnub.js").init({
+    publish_key   : "pam",
+    ssl : true,
+    subscribe_key : "pam"
+});
 
-/* ---------------------------------------------------------------------------
-Listen for Messages
---------------------------------------------------------------------------- */
+var channel = "abcd";
+var message = "Hello World !!!"
 
-function publish(channel, msg) {
+function log(r){
+    console.log(JSON.stringify(r,null,2));
+}
+
 pubnub.publish({
     channel  : channel,
-    message  : msg,
+    message  : message,
     callback : log,
-    error    : retry
+    error    : log
 });
-}
-function log(e) { console.log(e) }
-function retry() { console.log('retry?') }
 
-
-for (var i = 1; i < 2; i++) {
-    publish('dsm-test',i);
-}
+pubnub_pam.publish({
+    channel  : channel,
+    message  : message,
+    callback : log,
+    error    : log
+});

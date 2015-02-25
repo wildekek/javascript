@@ -3,16 +3,17 @@ var NOW                     = 1
 ,   READY_BUFFER            = []
 ,   PRESENCE_SUFFIX         = '-pnpres'
 ,   DEF_WINDOWING           = 10     // MILLISECONDS.
-,   DEF_TIMEOUT             = 10000  // MILLISECONDS.
-,   DEF_SUB_TIMEOUT         = 310    // SECONDS.
-,   DEF_KEEPALIVE           = 60     // SECONDS (FOR TIMESYNC).
-,   SECOND                  = 1000   // A THOUSAND MILLISECONDS.
+,   SUBSCRIBE_TIMEOUT       = 310000    // MILLISECONDS.
+,   TIMEOUT                 = 5000      // MILLISECONDS
+,   DEF_KEEPALIVE           = 60000     // MILLISECONDS (FOR TIMESYNC).
 ,   URLBIT                  = '/'
 ,   PARAMSBIT               = '&'
-,   PRESENCE_HB_THRESHOLD   = 5
-,   PRESENCE_HB_DEFAULT     = 30
+,   PRESENCE_HB_THRESHOLD   = 5000
+,   PRESENCE_HB_DEFAULT     = 30000
 ,   SDK_VER                 = VERSION
 ,   REPL                    = /{([\w\-]+)}/g;
+
+
 
 var  CONNECTION_STATES     =   {
     'EXPECTED_DISCONNECTED'     : 1,
@@ -253,7 +254,7 @@ function ready() { timeout( function() {
     if (READY) return;
     READY = 1;
     each( READY_BUFFER, function(connect) { connect() } );
-}, SECOND ); }
+}, 1000 ); }
 
 function PNmessage(args) {
     msg = args || {'apns' : {}},
@@ -310,10 +311,24 @@ function PNmessage(args) {
     return msg;
 }
 
+function isNullOrUndefined(r) {
+    return ( r == null || typeof r === 'undefined');
+}
+
+function add_result_envelope(r) {
+    var result = {};
+    if (!isNullOrUndefined(r['operation']))  result['operation']     = r['operation'];
+    if (!isNullOrUndefined(r['connection'])) result['connection']    = r['connection'];
+    if (!isNullOrUndefined(r['request']))    result['request']       = r['request'];
+    if (!isNullOrUndefined(r['code']))       result['code']          = r['code'];
+    if (!isNullOrUndefined(r['data']))       result['data']          = r['data'];
+    return result;
+}
+
 function PN_API(setup) {
     var SUB_WINDOWING =  +setup['windowing']   || DEF_WINDOWING
-    ,   SUB_TIMEOUT   = (+setup['timeout']     || DEF_SUB_TIMEOUT) * SECOND
-    ,   KEEPALIVE     = (+setup['keepalive']   || DEF_KEEPALIVE)   * SECOND
+    ,   SUB_TIMEOUT   = (+setup['subscribe_timeout']     || SUBSCRIBE_TIMEOUT)
+    ,   KEEPALIVE     = (+setup['keepalive']   || DEF_KEEPALIVE)
     ,   TIME_CHECK    = setup['timecheck']     || 0
     ,   NOLEAVE       = setup['noleave']       || 0
     ,   PUBLISH_KEY   = setup['publish_key']   || 'demo'
@@ -447,11 +462,11 @@ function PN_API(setup) {
         PRESENCE_HB_RUNNING = true;
         SELF['presence_heartbeat']({
             'callback' : function(r) {
-                PRESENCE_HB_TIMEOUT = timeout( _presence_heartbeat, (PRESENCE_HB_INTERVAL) * SECOND );
+                PRESENCE_HB_TIMEOUT = timeout( _presence_heartbeat, (PRESENCE_HB_INTERVAL));
             },
             'error' : function(e) {
                 error && error("Presence Heartbeat unable to reach Pubnub servers." + JSON.stringify(e));
-                PRESENCE_HB_TIMEOUT = timeout( _presence_heartbeat, (PRESENCE_HB_INTERVAL) * SECOND );
+                PRESENCE_HB_TIMEOUT = timeout( _presence_heartbeat, (PRESENCE_HB_INTERVAL));
             }
         });
     }
@@ -606,7 +621,7 @@ function PN_API(setup) {
 
             xdr({
                 blocking : blocking || SSL,
-                timeout  : 2000,
+                timeout  : NON_SUBSCRIBE_TIMEOUT,
                 callback : jsonp,
                 data     : _get_url_params(data),
                 success  : function(response) {
@@ -971,7 +986,7 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : _get_url_params({ 'uuid' : UUID, 'auth' : AUTH_KEY }),
-                timeout  : SECOND * 5,
+                timeout  : TIMEOUT,
                 url      : [STD_ORIGIN, 'time', jsonp],
                 success  : function(response) { callback(response[0]) },
                 fail     : function() { callback(0) }
@@ -985,6 +1000,11 @@ function PN_API(setup) {
             });
         */
         'publish' : function( args, callback ) {
+            var r_params = {
+                'operation'     : 'publish',
+                'connection'    : '1',
+
+            };
             var msg      = args['message'];
             if (!msg) return error('Missing Message');
 
@@ -1027,7 +1047,7 @@ function PN_API(setup) {
             // Queue Message Send
             PUB_QUEUE[add_msg]({
                 callback : jsonp,
-                timeout  : SECOND * 5,
+                timeout  : TIMEOUT,
                 url      : url,
                 data     : _get_url_params(params),
                 fail     : function(response){
@@ -1118,13 +1138,15 @@ function PN_API(setup) {
         'subscribe' : function( args, callback ) {
             var channel         = args['channel']
             ,   channel_group   = args['channel_group']
-            ,   callback        = callback            || args['callback']
-            ,   callback        = callback            || args['message']
+            ,   result          = result              || args['result']
+            ,   status          = status              || args['status']
             ,   auth_key        = args['auth_key']    || AUTH_KEY
+            /*
             ,   connect         = args['connect']     || function(){}
             ,   reconnect       = args['reconnect']   || function(){}
             ,   disconnect      = args['disconnect']  || function(){}
             ,   errcb           = args['error']       || function(){}
+            */
             ,   idlecb          = args['idle']        || function(){}
             ,   presence        = args['presence']    || 0
             ,   noheresync      = args['noheresync']  || 0
@@ -1135,6 +1157,37 @@ function PN_API(setup) {
             ,   state           = args['state']
             ,   heartbeat       = args['heartbeat'] || args['pnexpires']
             ,   restore         = args['restore'] || SUB_RESTORE;
+
+            function callback(message, http_data, message_envelope, channel, latency, real_channel) {
+                result && result(http_data);
+            }
+
+            function connect(channel, http_data) {
+                var status_event = http_data || {};
+
+                status_event.channel = channel;
+                status_event.category = 'connect';
+
+                status && status(http_data);
+            }
+
+            function disconnect(channel, http_data) {
+                var status_event = http_data || {};
+                
+                status_event.channel = channel;
+                status_event.category = 'disconnect';
+
+                status && status(status_event);
+            }
+
+            function reconnect(channel, http_data) {
+                var status_event = http_data || {};
+
+                status_event.channel = channel;
+                status_event.category = 'reconnect';
+
+                status && status(status_event);
+            }
 
             // Restore Enabled?
             SUB_RESTORE = restore;
@@ -1147,7 +1200,7 @@ function PN_API(setup) {
                 return error('Missing Channel');
             }
 
-            if (!callback)      return error('Missing Callback');
+            //if (!callback)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
 
             if (heartbeat || heartbeat === 0) {
@@ -1266,7 +1319,7 @@ function PN_API(setup) {
             function _test_connection(success) {
                 if (success) {
                     // Begin Next Socket Connection
-                    timeout( CONNECT, SECOND );
+                    timeout( CONNECT, 1000 );
                 }
                 else {
                     // New Origin on Failed Connection
@@ -1276,20 +1329,20 @@ function PN_API(setup) {
                     // Re-test Connection
                     timeout( function() {
                         SELF['time'](_test_connection);
-                    }, SECOND );
+                    }, 1000 );
                 }
 
                 _update_connection_states_and_invoke_callbacks((success)?1:0);
 
             }
 
-            function _update_connection_states_and_invoke_callbacks(connected){
+            function _update_connection_states_and_invoke_callbacks(connected, http_data){
 
                 // Connect
                 each_channel(function(channel){
                     var cb = channel[CONNECTION_STATE_MACHINE[channel.connection_state][connected]['callback']]
                     channel.connection_state = CONNECTION_STATE_MACHINE[channel.connection_state][connected]['state'];
-                    cb && cb(channel.name);
+                    cb && cb(channel.name, http_data);
 
                 });
 
@@ -1297,7 +1350,7 @@ function PN_API(setup) {
                 each_channel_group(function(channel_group){
                     var cb = channel_group[CONNECTION_STATE_MACHINE[channel_group.connection_state][connected]['callback']];
                     channel_group.connection_state = CONNECTION_STATE_MACHINE[channel_group.connection_state][connected]['state'];
-                    cb && cb(channel_group.name);
+                    cb && cb(channel_group.name, http_data);
                 });
             }
 
@@ -1348,8 +1401,9 @@ function PN_API(setup) {
                         SUBSCRIBE_KEY, encode(channels),
                         jsonp, TIMETOKEN
                     ],
-                    success : function(messages) {
+                    success : function(messages, http_data) {
 
+                        console.log(JSON.stringify(http_data));
                         // Check for Errors
                         if (!messages || (
                             typeof messages == 'object' &&
@@ -1357,7 +1411,7 @@ function PN_API(setup) {
                             messages['error']
                         )) {
                             errcb(messages['error']);
-                            return timeout( CONNECT, SECOND );
+                            return timeout( CONNECT, 1000 );
                         }
 
                         // User Idle Callback
@@ -1369,7 +1423,7 @@ function PN_API(setup) {
                                     db['get'](SUBSCRIBE_KEY) || messages[1];
 
 
-                        _update_connection_states_and_invoke_callbacks(1);
+                        _update_connection_states_and_invoke_callbacks(1, http_data);
 
 
                         if (RESUMED && !SUB_RESTORE) {
@@ -1444,7 +1498,7 @@ function PN_API(setup) {
                             var next = next_callback();
                             var decrypted_msg = decrypt(msg,
                                 (CHANNELS[next[1]])?CHANNELS[next[1]]['cipher_key']:null);
-                            next[0] && next[0]( decrypted_msg, messages, next[2] || next[1], latency, next[1]);
+                            next[0] && next[0]( decrypted_msg, http_data, messages, next[2] || next[1], latency, next[1]);
                         });
 
                         timeout( _connect, windowing );
@@ -1865,7 +1919,7 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : _get_url_params(data),
-                timeout  : SECOND * 5,
+                timeout  : TIMEOUT,
                 url      : [
                     STD_ORIGIN, 'v2', 'presence',
                     'sub-key', SUBSCRIBE_KEY,
@@ -1906,7 +1960,7 @@ function PN_API(setup) {
             "error" : "Offline. Please check your network settings. "
         });
         _poll_timer && clearTimeout(_poll_timer);
-        _poll_timer = timeout( _poll_online, SECOND );
+        _poll_timer = timeout( _poll_online, 1000 );
     }
 
     function _poll_online2() {
@@ -1933,11 +1987,11 @@ function PN_API(setup) {
     if (!UUID) UUID = SELF['uuid']();
     db['set']( SUBSCRIBE_KEY + 'uuid', UUID );
 
-    _poll_timer  = timeout( _poll_online,  SECOND    );
+    _poll_timer  = timeout( _poll_online,  1000    );
     _poll_timer2 = timeout( _poll_online2, KEEPALIVE );
     PRESENCE_HB_TIMEOUT = timeout(
         start_presence_heartbeat,
-        ( PRESENCE_HB_INTERVAL - 3 ) * SECOND
+        ( PRESENCE_HB_INTERVAL - 3000 )
     );
 
     // Detect Age of Message
