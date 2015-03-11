@@ -598,6 +598,30 @@ function PN_API(setup) {
 
     }
 
+    function getResultData(http_data) {
+        var result_data = {};
+    }
+
+    function objectShallowCopy(obj1, obj2) {
+        if (obj1 && obj2) {
+           for (var prop in obj2) {
+              if(obj2.hasOwnProperty(prop)){
+                obj1[prop] = obj2[prop];
+              }
+            }
+        }
+        return obj1
+    }
+
+    function getConfig(){
+        return {
+            'origin'    : STD_ORIGIN.split('://')[1],
+            'ssl'       : (SSL == 's')?true:false,
+            'uuid'      : UUID,
+            'auth_key'  : AUTH_KEY
+        }
+    }
+
     // Announce Leave Event
     var SELF = {
         'LEAVE' : function( channel, blocking, auth_key, callback, error ) {
@@ -1001,10 +1025,11 @@ function PN_API(setup) {
             });
         */
         'publish' : function( args, callback ) {
-            var r_params = {
-                'operation'     : 'publish',
-                'connection'    : '1',
-
+            var op_params = {
+                'operation'         : 'publish',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
             };
             var msg      = args['message'];
             if (!msg) return error('Missing Message');
@@ -1055,8 +1080,11 @@ function PN_API(setup) {
                     _invoke_error(response, err);
                     publish(1);
                 },
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    //console.log(JSON.stringify(response, null, 2));
+                    //console.log(JSON.stringify(http_data, null, 2));
+
+                    _invoke_callback(objectShallowCopy(http_data, op_params), callback, err);
                     publish(1);
                 },
                 mode     : (post)?'POST':'GET'
@@ -1160,6 +1188,9 @@ function PN_API(setup) {
             ,   restore         = args['restore'] || SUB_RESTORE;
 
             function callback(message, http_data, message_envelope, channel, latency, real_channel) {
+                var result_data = http_data || {};
+
+                result_data['operation']
                 result && result(http_data);
             }
 
@@ -2107,11 +2138,11 @@ function xdr( setup ) {
     ,   data     = setup['data'] || {}
     ,   xhrtme   = setup.timeout || DEF_TIMEOUT
     ,   body = ''
-    ,   http_data = {}
+    ,   http_data = {'request' : {}, 'response' : {}}
     ,   add_request_data = function(r) {
-            r['http_request_method'] = mode;
-            r['http_request_url'] = url;
-            if (payload.length) r['http_request_data'] = payload;
+            r['method'] = mode;
+            r['url'] = url;
+            if (payload.length) r['data'] = payload;
             return r;
     }
     ,   finished = function() {
@@ -2119,17 +2150,17 @@ function xdr( setup ) {
                 loaded = 1;
 
             clearTimeout(timer);
-            http_data['http_response_status']   = 200;
+            //http_data['response']['status']   = 200;
 
             try {
                 response = JSON['parse'](body);
             }
             catch (r) {
-                http_data['http_response'] = body;
+                http_data['response']['body'] = body;
                 return done(1, http_data)
             }
 
-            http_data['http_response']          = response;
+            http_data['response']['body']          = response;
             success(response, http_data);
 
         }
@@ -2164,7 +2195,7 @@ function xdr( setup ) {
 
     url = build_url( setup.url, data );
     console.log(mode + ' : ' + url);
-    add_request_data(http_data);
+    add_request_data(http_data['request']);
 
 
     if (!ssl) ssl = (url.split('://')[0] == 'https')?true:false;
@@ -2192,9 +2223,12 @@ function xdr( setup ) {
                 if (chunk) body += chunk;
             } );
             response.on( 'end', function(){
+                http_data['response']['headers'] = response.headers;
                 var statusCode = response.statusCode;
-                http_data['http_response_status'] = statusCode;
-                http_data['http_response'] = body;
+
+                http_data['response']['status'] = statusCode;
+                http_data['response']['body'] = body;
+
                 switch(statusCode) {
                     case 401:
                     case 402:
@@ -2202,7 +2236,7 @@ function xdr( setup ) {
                         http_data['category'] = 'access_denied';
                         try {
                             response = JSON['parse'](body);
-                            http_data['http_response'] = response;
+                            http_data['response']['body'] = response;
                             done(1, http_data);
                         }
                         catch (r) {

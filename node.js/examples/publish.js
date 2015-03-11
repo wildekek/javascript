@@ -14,7 +14,9 @@ var pubnub = require("./../pubnub.js").init({
 var pubnub_pam = require("./../pubnub.js").init({
     publish_key   : "pam",
     ssl : true,
-    subscribe_key : "pam"
+    subscribe_key : "pam",
+    result : log,
+    status : log
 });
 
 var channel = "abcd";
@@ -27,13 +29,13 @@ function log(r){
 pubnub.publish({
     channel  : channel,
     message  : message,
-    callback : log,
-    error    : log
 });
 
+/*
 pubnub_pam.publish({
     channel  : channel,
     message  : message,
     callback : log,
     error    : log
 });
+*/

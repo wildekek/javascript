@@ -87,11 +87,11 @@ function xdr( setup ) {
     ,   data     = setup['data'] || {}
     ,   xhrtme   = setup.timeout || DEF_TIMEOUT
     ,   body = ''
-    ,   http_data = {}
+    ,   http_data = {'request' : {}, 'response' : {}}
     ,   add_request_data = function(r) {
-            r['http_request_method'] = mode;
-            r['http_request_url'] = url;
-            if (payload.length) r['http_request_data'] = payload;
+            r['method'] = mode;
+            r['url'] = url;
+            if (payload.length) r['data'] = payload;
             return r;
     }
     ,   finished = function() {
@@ -99,17 +99,17 @@ function xdr( setup ) {
                 loaded = 1;
 
             clearTimeout(timer);
-            http_data['http_response_status']   = 200;
+            //http_data['response']['status']   = 200;
 
             try {
                 response = JSON['parse'](body);
             }
             catch (r) {
-                http_data['http_response'] = body;
+                http_data['response']['body'] = body;
                 return done(1, http_data)
             }
 
-            http_data['http_response']          = response;
+            http_data['response']['body']          = response;
             success(response, http_data);
 
         }
@@ -144,7 +144,7 @@ function xdr( setup ) {
 
     url = build_url( setup.url, data );
     console.log(mode + ' : ' + url);
-    add_request_data(http_data);
+    add_request_data(http_data['request']);
 
 
     if (!ssl) ssl = (url.split('://')[0] == 'https')?true:false;
@@ -172,9 +172,12 @@ function xdr( setup ) {
                 if (chunk) body += chunk;
             } );
             response.on( 'end', function(){
+                http_data['response']['headers'] = response.headers;
                 var statusCode = response.statusCode;
-                http_data['http_response_status'] = statusCode;
-                http_data['http_response'] = body;
+
+                http_data['response']['status'] = statusCode;
+                http_data['response']['body'] = body;
+
                 switch(statusCode) {
                     case 401:
                     case 402:
@@ -182,7 +185,7 @@ function xdr( setup ) {
                         http_data['category'] = 'access_denied';
                         try {
                             response = JSON['parse'](body);
-                            http_data['http_response'] = response;
+                            http_data['response']['body'] = response;
                             done(1, http_data);
                         }
                         catch (r) {

@@ -597,6 +597,30 @@ function PN_API(setup) {
 
     }
 
+    function getResultData(http_data) {
+        var result_data = {};
+    }
+
+    function objectShallowCopy(obj1, obj2) {
+        if (obj1 && obj2) {
+           for (var prop in obj2) {
+              if(obj2.hasOwnProperty(prop)){
+                obj1[prop] = obj2[prop];
+              }
+            }
+        }
+        return obj1
+    }
+
+    function getConfig(){
+        return {
+            'origin'    : STD_ORIGIN.split('://')[1],
+            'ssl'       : (SSL == 's')?true:false,
+            'uuid'      : UUID,
+            'auth_key'  : AUTH_KEY
+        }
+    }
+
     // Announce Leave Event
     var SELF = {
         'LEAVE' : function( channel, blocking, auth_key, callback, error ) {
@@ -863,6 +887,13 @@ function PN_API(setup) {
             ,   params           = {}
             ,   jsonp            = jsonp_cb();
 
+            var op_params = {
+                'operation'         : 'history',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
             // Make sure we have a Channel
             if (!channel && !channel_group) return error('Missing Channel');
             if (!callback)      return error('Missing Callback');
@@ -888,7 +919,7 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : _get_url_params(params),
-                success  : function(response) {
+                success  : function(response, http_data) {
                     if (typeof response == 'object' && response['error']) {
                         err({'message' : response['message'], 'payload' : response['payload']});
                         return;
@@ -1000,10 +1031,11 @@ function PN_API(setup) {
             });
         */
         'publish' : function( args, callback ) {
-            var r_params = {
-                'operation'     : 'publish',
-                'connection'    : '1',
-
+            var op_params = {
+                'operation'         : 'publish',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
             };
             var msg      = args['message'];
             if (!msg) return error('Missing Message');
@@ -1054,8 +1086,11 @@ function PN_API(setup) {
                     _invoke_error(response, err);
                     publish(1);
                 },
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    //console.log(JSON.stringify(response, null, 2));
+                    //console.log(JSON.stringify(http_data, null, 2));
+
+                    _invoke_callback(objectShallowCopy(http_data, op_params), callback, err);
                     publish(1);
                 },
                 mode     : (post)?'POST':'GET'
@@ -1159,6 +1194,9 @@ function PN_API(setup) {
             ,   restore         = args['restore'] || SUB_RESTORE;
 
             function callback(message, http_data, message_envelope, channel, latency, real_channel) {
+                var result_data = http_data || {};
+
+                result_data['operation']
                 result && result(http_data);
             }
 
