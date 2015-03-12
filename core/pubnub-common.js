@@ -966,6 +966,14 @@ function PN_API(setup) {
             ,   data        = {}
             ,   url;
 
+            
+            var op_params = {
+                'operation'         : 'replay',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
+
             // Check User Input
             if (!source)        return error('Missing Source Channel');
             if (!destination)   return error('Missing Destination Channel');
@@ -1013,6 +1021,13 @@ function PN_API(setup) {
             PUBNUB.time(function(time){ });
         */
         'time' : function(callback) {
+
+            var op_params = {
+                'operation'         : 'time',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
             var jsonp = jsonp_cb();
             xdr({
                 callback : jsonp,
@@ -1040,11 +1055,11 @@ function PN_API(setup) {
             var msg      = args['message'];
             if (!msg) return error('Missing Message');
 
-            var callback = callback || args['callback'] || msg['callback'] || function(){}
+            var callback = callback || args['result'] || args['callback'] || msg['callback'] || function(){}
             ,   channel  = args['channel'] || msg['channel']
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   cipher_key = args['cipher_key']
-            ,   err      = args['error'] || msg['error'] || function() {}
+            ,   err      = args['status'] || args['error'] || msg['error'] || function() {}
             ,   post     = args['post'] || false
             ,   store    = ('store_in_history' in args) ? args['store_in_history']: true
             ,   jsonp    = jsonp_cb()
@@ -1082,8 +1097,11 @@ function PN_API(setup) {
                 timeout  : TIMEOUT,
                 url      : url,
                 data     : _get_url_params(params),
-                fail     : function(response){
-                    _invoke_error(response, err);
+                fail     : function(response, http_data){
+                    console.log(JSON.stringify(response, null, 2));
+                    console.log(JSON.stringify(http_data, null, 2));
+                    _invoke_callback(objectShallowCopy(http_data, op_params), err);
+                    //_invoke_error(response, err);
                     publish(1);
                 },
                 success  : function(response, http_data) {
@@ -1192,6 +1210,14 @@ function PN_API(setup) {
             ,   state           = args['state']
             ,   heartbeat       = args['heartbeat'] || args['pnexpires']
             ,   restore         = args['restore'] || SUB_RESTORE;
+
+            
+            var op_params = {
+                'operation'         : 'subscribe',
+                'connection'        : 'sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
 
             function callback(message, http_data, message_envelope, channel, latency, real_channel) {
                 var result_data = http_data || {};
@@ -1569,6 +1595,14 @@ function PN_API(setup) {
             ,   uuids    = ('uuids' in args) ? args['uuids'] : true
             ,   state    = args['state']
             ,   data     = { 'uuid' : UUID, 'auth' : auth_key };
+            
+            var op_params = {
+                'operation'         : 'here_now',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
+
 
             if (!uuids) data['disable_uuids'] = 1;
             if (state) data['state'] = 1;
@@ -1616,6 +1650,14 @@ function PN_API(setup) {
             ,   uuid     = args['uuid']     || UUID
             ,   data     = { 'auth' : auth_key };
 
+            var op_params = {
+                'operation'         : 'where_now',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
+
+
             // Make sure we have a Channel
             if (!callback)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
@@ -1650,6 +1692,13 @@ function PN_API(setup) {
             ,   channel_group = args['channel_group']
             ,   url
             ,   data     = _get_url_params({ 'auth' : auth_key });
+
+            var op_params = {
+                'operation'         : 'state',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
 
             // Make sure we have a Channel
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
@@ -1731,6 +1780,13 @@ function PN_API(setup) {
             ,   m               = (args['manage'])?"1":"0"
             ,   auth_key        = args['auth_key'];
 
+            var op_params = args['op_params'] || {
+                'operation'         : 'grant',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
+
             if (!callback)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
             if (!PUBLISH_KEY)   return error('Missing Publish Key');
@@ -1809,6 +1865,13 @@ function PN_API(setup) {
                 ,   device_id      = args['device_id']
                 ,   url;
 
+            var op_params = {
+                'operation'         : 'mobile_gw_provision',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
+
             if (!device_id)     return error('Missing Device ID (device_id)');
             if (!gw_type)       return error('Missing GW Type (gw_type: gcm or apns)');
             if (!op)            return error('Missing GW Operation (op: add or remove)');
@@ -1861,6 +1924,13 @@ function PN_API(setup) {
             ,   channel_group   = args['channel_group']
             ,   auth_key        = args['auth_key']
             ,   jsonp           = jsonp_cb();
+
+            var op_params = args['op_params'] || {
+                'operation'         : 'audit',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
 
             // Make sure we have a Channel
             if (!callback)      return error('Missing Callback');
@@ -1920,6 +1990,12 @@ function PN_API(setup) {
         'revoke' : function( args, callback ) {
             args['read']  = false;
             args['write'] = false;
+            args['op_params'] = {
+                'operation'         : 'state',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
             SELF['grant']( args, callback );
         },
         'set_uuid' : function(uuid) {
@@ -1940,6 +2016,13 @@ function PN_API(setup) {
             var err      = args['error']    || function() {}
             var jsonp    = jsonp_cb();
             var data     = { 'uuid' : UUID, 'auth' : AUTH_KEY };
+
+            var op_params = {
+                'operation'         : 'presence_heartbeat',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
 
             var st = JSON['stringify'](STATE);
             if (st.length > 2) data['state'] = JSON['stringify'](STATE);

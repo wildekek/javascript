@@ -3,8 +3,8 @@
 var PUBNUB = require("../pubnub.js")
 
 var pubnub = PUBNUB({
-    publish_key   : "demo",
-    subscribe_key : "demo"
+    publish_key   : "pam",
+    subscribe_key : "pam"
 });
 
 var channel = "abcd";
@@ -18,7 +18,7 @@ function reconnect(m) {log('RECONNECT',m)}
 function error(m) {log('ERROR',m)}
 function callback(m) {log('CALLBACK',m)}
 
-
+/*
 pubnub.subscribe({
 	channel : channel,
 	status  : function(se) {
@@ -28,3 +28,15 @@ pubnub.subscribe({
 		console.log(JSON.stringify(data,null,2));
 	}
 });
+*/
+
+pubnub.publish({
+	channel : channel,
+	message : 'hi',
+	status : function(se) {
+		console.log(JSON.stringify(data, null, 2));
+	},
+	result : function(data){
+		console.log(JSON.stringify(data, null, 2));
+	}
+})
