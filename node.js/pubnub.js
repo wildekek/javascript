@@ -5,7 +5,7 @@ var NOW                     = 1
 ,   PRESENCE_SUFFIX         = '-pnpres'
 ,   DEF_WINDOWING           = 10     // MILLISECONDS.
 ,   SUBSCRIBE_TIMEOUT       = 310000    // MILLISECONDS.
-,   TIMEOUT                 = 5000      // MILLISECONDS
+,   NON_SUBSCRIBE_TIMEOUT   = 5000      // MILLISECONDS
 ,   DEF_KEEPALIVE           = 60000     // MILLISECONDS (FOR TIMESYNC).
 ,   URLBIT                  = '/'
 ,   PARAMSBIT               = '&'
@@ -329,6 +329,7 @@ function add_result_envelope(r) {
 function PN_API(setup) {
     var SUB_WINDOWING =  +setup['windowing']   || DEF_WINDOWING
     ,   SUB_TIMEOUT   = (+setup['subscribe_timeout']     || SUBSCRIBE_TIMEOUT)
+    ,   NON_SUBSCRIBE_TIMEOUT = (+setup['non_subscribe_timeout']     || NON_SUBSCRIBE_TIMEOUT)
     ,   KEEPALIVE     = (+setup['keepalive']   || DEF_KEEPALIVE)
     ,   TIME_CHECK    = setup['timecheck']     || 0
     ,   NOLEAVE       = setup['noleave']       || 0
@@ -370,6 +371,8 @@ function PN_API(setup) {
     ,   jsonp_cb      = setup['jsonp_cb']   || function() { return 0 }
     ,   db            = setup['db']         || {'get': function(){}, 'set': function(){}}
     ,   CIPHER_KEY    = setup['cipher_key']
+    ,   result_cb     = setup['result'] || function(){}
+    ,   status_cb     = setup['status'] || function(){}
     ,   UUID          = setup['uuid'] || ( !setup['unique_uuid'] && db && db['get'](SUBSCRIBE_KEY+'uuid') || '')
     ,   _poll_timer
     ,   _poll_timer2;
@@ -564,39 +567,7 @@ function PN_API(setup) {
             err && err(response);
         }
     }
-    function CR(args, callback, url1, data) {
-            var callback        = args['callback']      || callback
-            ,   err             = args['error']         || error
-            ,   jsonp           = jsonp_cb();
 
-            data = data || {};
-            
-            if (!data['auth']) {
-                data['auth'] = args['auth_key'] || AUTH_KEY;
-            }
-            
-            var url = [
-                    STD_ORIGIN, 'v1', 'channel-registration',
-                    'sub-key', SUBSCRIBE_KEY
-                ];
-
-            url.push.apply(url,url1);
-            
-            if (jsonp) data['callback']              = jsonp;
-            
-            xdr({
-                callback : jsonp,
-                data     : _get_url_params(data),
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
-                },
-                fail     : function(response) {
-                    _invoke_error(response, err);
-                },
-                url      : url
-            });
-
-    }
 
     function getResultData(http_data) {
         var result_data = {};
@@ -620,6 +591,48 @@ function PN_API(setup) {
             'uuid'      : UUID,
             'auth_key'  : AUTH_KEY
         }
+    }
+
+    function _invoke_callback_v4(response, http_data, op_params, callback, err) {
+        //console.log('V4 callback');
+        var v4_cb_data = objectShallowCopy(http_data, op_params);
+        v4_cb_data['data'] = response;
+        _invoke_callback(v4_cb_data, callback, err);
+    }
+
+    function CR(args, callback, url1, data) {
+            var callback        = args['result'] || args['callback']      || callback || result_cb
+            ,   err             = args['status'] || args['error']         || error    || status_cb
+            ,   op_params       = setup['op_params']    || {}
+            ,   jsonp           = jsonp_cb();
+
+            data = data || {};
+            
+            if (!data['auth']) {
+                data['auth'] = args['auth_key'] || AUTH_KEY;
+            }
+            
+            var url = [
+                    STD_ORIGIN, 'v1', 'channel-registration',
+                    'sub-key', SUBSCRIBE_KEY
+                ];
+
+            url.push.apply(url,url1);
+            
+            if (jsonp) data['callback']              = jsonp;
+            
+            xdr({
+                callback : jsonp,
+                data     : _get_url_params(data),
+                success  : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
+                },
+                fail     : function(response) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
+                },
+                url      : url
+            });
+
     }
 
     // Announce Leave Event
@@ -686,7 +699,7 @@ function PN_API(setup) {
 
             xdr({
                 blocking : blocking || SSL,
-                timeout  : 5000,
+                timeout  : NON_SUBSCRIBE_TIMEOUT,
                 callback : jsonp,
                 data     : _get_url_params(data),
                 success  : function(response) {
@@ -774,6 +787,14 @@ function PN_API(setup) {
             ,   data = {}
             ,   mode = args['mode'] || 'add';
 
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
+
 
             if (ns_ch) {
                 var ns_ch_a = ns_ch.split(':');
@@ -812,6 +833,13 @@ function PN_API(setup) {
 
         'channel_group_list_groups' : function(args, callback) {
             var namespace;
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group_list_groups',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
 
             namespace = args['namespace'] || args['ns'] || args['channel_group'] || null;
             if (namespace) {
@@ -822,11 +850,25 @@ function PN_API(setup) {
         },
 
         'channel_group_list_channels' : function(args, callback) {
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group_list_channels',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
             if (!args['channel_group']) return error('Missing Channel Group');
             SELF['channel_group'](args, callback);
         },
 
         'channel_group_remove_channel' : function(args, callback) {
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group_remove_channel',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
             if (!args['channel_group']) return error('Missing Channel Group');
             if (!args['channel'] && !args['channels'] ) return error('Missing Channel');
 
@@ -835,6 +877,13 @@ function PN_API(setup) {
         },
 
         'channel_group_remove_group' : function(args, callback) {
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group_remove_group',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
             if (!args['channel_group']) return error('Missing Channel Group');
             if (args['channel']) return error('Use channel_group_remove_channel if you want to remove a channel from a group.');
 
@@ -843,12 +892,26 @@ function PN_API(setup) {
         },
 
         'channel_group_add_channel' : function(args, callback) {
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group_add_channel',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
            if (!args['channel_group']) return error('Missing Channel Group');
            if (!args['channel'] && !args['channels'] ) return error('Missing Channel');
             SELF['channel_group'](args,callback);
         },
 
         'channel_group_cloak' : function(args, callback) {
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group_cloak',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
             if (typeof args['cloak'] == 'undefined') {
                 callback(CLOAK);
                 return;
@@ -859,9 +922,23 @@ function PN_API(setup) {
 
         'channel_group_list_namespaces' : function(args, callback) {
             var url = ['namespace'];
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group_list_namespaces',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
             CR(args, callback, url);
         },
         'channel_group_remove_namespace' : function(args, callback) {
+            args['op_params'] = setup['op_params'] || {
+                'operation'         : 'channel_group_remove_namespace',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : true,
+                'config'            : getConfig()
+            };
+
             var url = ['namespace',args['namespace'],'remove'];
             CR(args, callback, url);
         },
@@ -874,10 +951,10 @@ function PN_API(setup) {
             });
         */
         'history' : function( args, callback ) {
-            var callback         = args['callback'] || callback
+            var callback         = args['result'] || args['callback'] || callback || result_cb
             ,   count            = args['count']    || args['limit'] || 100
             ,   reverse          = args['reverse']  || "false"
-            ,   err              = args['error']    || function(){}
+            ,   err              = args['status'] || args['error']    || status_cb
             ,   auth_key         = args['auth_key'] || AUTH_KEY
             ,   cipher_key       = args['cipher_key']
             ,   channel          = args['channel']
@@ -935,10 +1012,16 @@ function PN_API(setup) {
                             decrypted_messages['push']((new_message));
                         }
                     }
-                    callback([decrypted_messages, response[1], response[2]]);
+                    //callback([decrypted_messages, response[1], response[2]]);
+                    //var data = objectShallowCopy(http_data, op_params);
+                    //data['data'] = [decrypted_messages, response[1], response[2]];
+                    _invoke_callback_v4([decrypted_messages, response[1], response[2]], http_data, op_params, callback, err);
                 },
-                fail     : function(response) {
-                    _invoke_error(response, err);
+                fail     : function(response, http_data) {
+                    //console.log(JSON.stringify(http_data));
+                    //_invoke_error(response, err);
+                    //_invoke_callback(objectShallowCopy(http_data, op_params), err);
+                    _invoke_callback_v4(response, http_data, op_params, err);
                 },
                 url      : [
                     STD_ORIGIN, 'v2', 'history', 'sub-key',
@@ -1033,7 +1116,7 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : _get_url_params({ 'uuid' : UUID, 'auth' : AUTH_KEY }),
-                timeout  : TIMEOUT,
+                timeout  : NON_SUBSCRIBE_TIMEOUT,
                 url      : [STD_ORIGIN, 'time', jsonp],
                 success  : function(response) { callback(response[0]) },
                 fail     : function() { callback(0) }
@@ -1056,11 +1139,11 @@ function PN_API(setup) {
             var msg      = args['message'];
             if (!msg) return error('Missing Message');
 
-            var callback = callback || args['result'] || args['callback'] || msg['callback'] || function(){}
+            var callback = callback || args['result'] || args['callback'] || msg['callback'] || result_cb || function(){}
             ,   channel  = args['channel'] || msg['channel']
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   cipher_key = args['cipher_key']
-            ,   err      = args['status'] || args['error'] || msg['error'] || function() {}
+            ,   err      = args['status'] || args['error'] || msg['error'] || status_cb || function() {}
             ,   post     = args['post'] || false
             ,   store    = ('store_in_history' in args) ? args['store_in_history']: true
             ,   jsonp    = jsonp_cb()
@@ -1095,19 +1178,15 @@ function PN_API(setup) {
             // Queue Message Send
             PUB_QUEUE[add_msg]({
                 callback : jsonp,
-                timeout  : TIMEOUT,
+                timeout  : NON_SUBSCRIBE_TIMEOUT,
                 url      : url,
                 data     : _get_url_params(params),
                 fail     : function(response, http_data){
-                    _invoke_callback(objectShallowCopy(http_data, op_params), err);
-                    //_invoke_error(response, err);
+                    _invoke_callback_v4(response, http_data, op_params, err);
                     publish(1);
                 },
                 success  : function(response, http_data) {
-                    //console.log(JSON.stringify(response, null, 2));
-                    //console.log(JSON.stringify(http_data, null, 2));
-
-                    _invoke_callback(objectShallowCopy(http_data, op_params), callback, err);
+                    _invoke_callback_v4(response, http_data, op_params, callback, err);
                     publish(1);
                 },
                 mode     : (post)?'POST':'GET'
@@ -1124,8 +1203,8 @@ function PN_API(setup) {
             var channel       = args['channel']
             ,   channel_group = args['channel_group']
             ,   auth_key      = args['auth_key']    || AUTH_KEY
-            ,   callback      = callback            || args['callback'] || function(){}
-            ,   err           = args['error']       || function(){};
+            ,   callback      = args['result']      || callback || args['callback'] || result_cb
+            ,   err           = args['status']      || args['error']       || status_cb
 
             TIMETOKEN   = 0;
             //SUB_RESTORE = 1;    REVISIT !!!!
@@ -1219,10 +1298,7 @@ function PN_API(setup) {
             };
 
             function callback(message, http_data, message_envelope, channel, latency, real_channel) {
-                var result_data = http_data || {};
-
-                result_data['operation']
-                result && result(http_data);
+                _invoke_callback_v4(message, http_data, op_params, result, status);
             }
 
             function connect(channel, http_data) {
@@ -1466,7 +1542,7 @@ function PN_API(setup) {
                     ],
                     success : function(messages, http_data) {
 
-                        console.log(JSON.stringify(http_data));
+                        //console.log(JSON.stringify(http_data));
                         // Check for Errors
                         if (!messages || (
                             typeof messages == 'object' &&
@@ -1585,8 +1661,8 @@ function PN_API(setup) {
             PUBNUB.here_now({ channel : 'my_chat', callback : fun });
         */
         'here_now' : function( args, callback ) {
-            var callback = args['callback'] || callback
-            ,   err      = args['error']    || function(){}
+            var callback = args['result'] || args['callback'] || callback || result_cb
+            ,   err      = args['status'] || args['error']    || status_cb
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   channel  = args['channel']
             ,   channel_group = args['channel_group']
@@ -1628,11 +1704,11 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : _get_url_params(data),
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
                 },
-                fail     : function(response) {
-                    _invoke_error(response, err);
+                fail     : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
                 },
                 url      : url
             });
@@ -1642,8 +1718,8 @@ function PN_API(setup) {
             PUBNUB.current_channels_by_uuid({ channel : 'my_chat', callback : fun });
         */
         'where_now' : function( args, callback ) {
-            var callback = args['callback'] || callback
-            ,   err      = args['error']    || function(){}
+            var callback = args['result'] || args['callback'] || callback || result_cb
+            ,   err      = args['status'] || args['error']    || status_cb
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   jsonp    = jsonp_cb()
             ,   uuid     = args['uuid']     || UUID
@@ -1666,11 +1742,11 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : _get_url_params(data),
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
                 },
-                fail     : function(response) {
-                    _invoke_error(response, err);
+                fail     : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
                 },
                 url      : [
                     STD_ORIGIN, 'v2', 'presence',
@@ -1681,8 +1757,8 @@ function PN_API(setup) {
         },
 
         'state' : function(args, callback) {
-            var callback = args['callback'] || callback || function(r) {}
-            ,   err      = args['error']    || function(){}
+            var callback = args['result'] || args['callback'] || callback || result_cb
+            ,   err      = args['status'] || args['error']    || status_cb
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   jsonp    = jsonp_cb()
             ,   state    = args['state']
@@ -1744,11 +1820,11 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : _get_url_params(data),
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
                 },
-                fail     : function(response) {
-                    _invoke_error(response, err);
+                fail     : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
                 },
                 url      : url
 
@@ -1768,8 +1844,8 @@ function PN_API(setup) {
             });
         */
         'grant' : function( args, callback ) {
-            var callback        = args['callback'] || callback
-            ,   err             = args['error']    || function(){}
+            var callback = args['result'] || args['callback'] || callback || result_cb
+            ,   err      = args['status'] || args['error']    || status_cb
             ,   channel         = args['channel']
             ,   channel_group   = args['channel_group']
             ,   jsonp           = jsonp_cb()
@@ -1828,11 +1904,13 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : data,
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    //console.log(JSON.stringify(response));
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
                 },
-                fail     : function(response) {
-                    _invoke_error(response, err);
+                fail     : function(response, http_data) {
+                    //console.log(JSON.stringify(response));
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
                 },
                 url      : [
                     STD_ORIGIN, 'v1', 'auth', 'grant' ,
@@ -1854,15 +1932,15 @@ function PN_API(setup) {
 
         'mobile_gw_provision' : function( args ) {
 
-            var callback = args['callback'] || function(){}
-                ,   auth_key       = args['auth_key'] || AUTH_KEY
-                ,   err            = args['error'] || function() {}
-                ,   jsonp          = jsonp_cb()
-                ,   channel        = args['channel']
-                ,   op             = args['op']
-                ,   gw_type        = args['gw_type']
-                ,   device_id      = args['device_id']
-                ,   url;
+            var callback = args['result'] || args['callback'] || callback || result_cb
+            ,   err      = args['status'] || args['error']    || status_cb
+            ,   auth_key       = args['auth_key'] || AUTH_KEY
+            ,   jsonp          = jsonp_cb()
+            ,   channel        = args['channel']
+            ,   op             = args['op']
+            ,   gw_type        = args['gw_type']
+            ,   device_id      = args['device_id']
+            ,   url;
 
             var op_params = {
                 'operation'         : 'mobile_gw_provision',
@@ -1895,11 +1973,11 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : params,
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    _invoke_callback_v4(response, http_data, op_params, callback, err);
                 },
-                fail     : function(response) {
-                    _invoke_error(response, err);
+                fail     : function(response, http_data) {
+                    _invoke_callback_v4(response, http_data, op_params, err);
                 },
                 url      : url
             });
@@ -1917,8 +1995,8 @@ function PN_API(setup) {
             });
         */
         'audit' : function( args, callback ) {
-            var callback        = args['callback'] || callback
-            ,   err             = args['error']    || function(){}
+            var callback = args['result'] || args['callback'] || callback || result_cb
+            ,   err      = args['status'] || args['error']    || status_cb
             ,   channel         = args['channel']
             ,   channel_group   = args['channel_group']
             ,   auth_key        = args['auth_key']
@@ -1965,11 +2043,11 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : data,
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
                 },
-                fail     : function(response) {
-                    _invoke_error(response, err);
+                fail     : function(response, http_data) {
+                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
                 },
                 url      : [
                     STD_ORIGIN, 'v1', 'auth', 'audit' ,
@@ -1990,7 +2068,7 @@ function PN_API(setup) {
             args['read']  = false;
             args['write'] = false;
             args['op_params'] = {
-                'operation'         : 'state',
+                'operation'         : 'revoke',
                 'connection'        : 'non-sub',
                 'wasAutoRetried'    : false,
                 'config'            : getConfig()
@@ -2011,8 +2089,8 @@ function PN_API(setup) {
             return generate_channel_list(CHANNELS, true);
         },
         'presence_heartbeat' : function(args) {
-            var callback = args['callback'] || function() {}
-            var err      = args['error']    || function() {}
+            var callback = args['result'] || args['callback'] || callback || result_cb;fNON
+            var   err      = args['status'] || args['error']    || status_cb;
             var jsonp    = jsonp_cb();
             var data     = { 'uuid' : UUID, 'auth' : AUTH_KEY };
 
@@ -2039,17 +2117,19 @@ function PN_API(setup) {
             xdr({
                 callback : jsonp,
                 data     : _get_url_params(data),
-                timeout  : TIMEOUT,
+                timeout  : NON_SUBSCRIBE_TIMEOUT,
                 url      : [
                     STD_ORIGIN, 'v2', 'presence',
                     'sub-key', SUBSCRIBE_KEY,
                     'channel' , channels,
                     'heartbeat'
                 ],
-                success  : function(response) {
-                    _invoke_callback(response, callback, err);
+                success  : function(response, http_data) {
+                    _invoke_callback_v4(http_data, op_params, callback, err);
                 },
-                fail     : function(response) { _invoke_error(response, err); }
+                fail     : function(response, http_data) {
+                    _invoke_callback_v4(http_data, op_params, err);
+                },
             });
         },
         'stop_timers': function () {
@@ -2248,7 +2328,7 @@ function xdr( setup ) {
                 return done(1, http_data)
             }
 
-            http_data['response']['body']          = response;
+            http_data['response']['body']          = body;
             success(response, http_data);
 
         }
@@ -2282,7 +2362,7 @@ function xdr( setup ) {
         payload = decodeURIComponent(setup.url.pop());
 
     url = build_url( setup.url, data );
-    console.log(mode + ' : ' + url);
+    //console.log(mode + ' : ' + url);
     add_request_data(http_data['request']);
 
 
@@ -2305,8 +2385,8 @@ function xdr( setup ) {
     try {
         request = (ssl ? https : http)['request'](options, function(response) {
             response.setEncoding('utf8');
-            response.on( 'error', function(){done(1, http_data)});
-            response.on( 'abort', function(){done(1, http_data)});
+            response.on( 'error', function(){done(1, null, http_data)});
+            response.on( 'abort', function(){done(1, null, http_data)});
             response.on( 'data', function (chunk) {
                 if (chunk) body += chunk;
             } );
@@ -2323,12 +2403,12 @@ function xdr( setup ) {
                     case 403:
                         http_data['category'] = 'access_denied';
                         try {
+                            http_data['response']['body'] = body;
                             response = JSON['parse'](body);
-                            http_data['response']['body'] = response;
-                            done(1, http_data);
+                            done(1, response, http_data);
                         }
                         catch (r) {
-                            return done(1, http_data);
+                            return done(1, null, http_data);
                         }
                         return;
                     default:

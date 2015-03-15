@@ -8,28 +8,46 @@
 var pubnub = require("./../pubnub.js").init({
     publish_key   : "demo",
     ssl : true,
-    subscribe_key : "demo"
+    subscribe_key : "demo",
+    cipher_key : "demo",
+    result : rlog,
+    status : slog
 });
 
 var pubnub_pam = require("./../pubnub.js").init({
     publish_key   : "pam",
     ssl : true,
     subscribe_key : "pam",
-    result : log,
-    status : log
+    result : rlog,
+    status : slog
 });
 
 var channel = "abcd";
 var message = "Hello World !!!"
 
-function log(r){
+function rlog(r){
+    console.log("RESULT");
     console.log(JSON.stringify(r,null,2));
 }
 
-pubnub.publish({
-    channel  : channel,
-    message  : message,
+function slog(r){
+    console.log(JSON.stringify("STATUS"));
+    console.log(JSON.stringify(r,null,2));
+}
+
+pubnub.where_now({
+    channel  : 'crypto'
 });
+
+
+//pubnub.history({
+//    channel : 'crypto'
+//})
+
+//pubnub_pam.history({
+//    channel : 'abcd'
+//})
+
 
 /*
 pubnub_pam.publish({

@@ -109,7 +109,7 @@ function xdr( setup ) {
                 return done(1, http_data)
             }
 
-            http_data['response']['body']          = response;
+            http_data['response']['body']          = body;
             success(response, http_data);
 
         }
@@ -143,7 +143,7 @@ function xdr( setup ) {
         payload = decodeURIComponent(setup.url.pop());
 
     url = build_url( setup.url, data );
-    console.log(mode + ' : ' + url);
+    //console.log(mode + ' : ' + url);
     add_request_data(http_data['request']);
 
 
@@ -166,8 +166,8 @@ function xdr( setup ) {
     try {
         request = (ssl ? https : http)['request'](options, function(response) {
             response.setEncoding('utf8');
-            response.on( 'error', function(){done(1, http_data)});
-            response.on( 'abort', function(){done(1, http_data)});
+            response.on( 'error', function(){done(1, null, http_data)});
+            response.on( 'abort', function(){done(1, null, http_data)});
             response.on( 'data', function (chunk) {
                 if (chunk) body += chunk;
             } );
@@ -184,12 +184,12 @@ function xdr( setup ) {
                     case 403:
                         http_data['category'] = 'access_denied';
                         try {
+                            http_data['response']['body'] = body;
                             response = JSON['parse'](body);
-                            http_data['response']['body'] = response;
-                            done(1, http_data);
+                            done(1, response, http_data);
                         }
                         catch (r) {
-                            return done(1, http_data);
+                            return done(1, null, http_data);
                         }
                         return;
                     default:
