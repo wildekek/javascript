@@ -1138,11 +1138,11 @@ function PN_API(setup) {
             var msg      = args['message'];
             if (!msg) return error('Missing Message');
 
-            var callback = callback || args['result'] || args['callback'] || msg['callback'] || result_cb || function(){}
+            var callback = callback || args['result'] || args['callback'] || msg['callback'] || result_cb
             ,   channel  = args['channel'] || msg['channel']
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   cipher_key = args['cipher_key']
-            ,   err      = args['status'] || args['error'] || msg['error'] || status_cb || function() {}
+            ,   err      = args['status'] || args['error'] || msg['error'] || status_cb
             ,   post     = args['post'] || false
             ,   store    = ('store_in_history' in args) ? args['store_in_history']: true
             ,   jsonp    = jsonp_cb()
@@ -1271,12 +1271,6 @@ function PN_API(setup) {
             ,   result          = result              || args['result']
             ,   status          = status              || args['status']
             ,   auth_key        = args['auth_key']    || AUTH_KEY
-            /*
-            ,   connect         = args['connect']     || function(){}
-            ,   reconnect       = args['reconnect']   || function(){}
-            ,   disconnect      = args['disconnect']  || function(){}
-            ,   errcb           = args['error']       || function(){}
-            */
             ,   idlecb          = args['idle']        || function(){}
             ,   presence        = args['presence']    || 0
             ,   noheresync      = args['noheresync']  || 0
