@@ -35,9 +35,13 @@ function slog(r){
     console.log(JSON.stringify(r,null,2));
 }
 
-pubnub.where_now({
-    channel  : 'crypto'
-});
+function log(r) {
+    console.log(JSON.stringify(r));
+}
+
+//pubnub.where_now({
+//    channel  : 'crypto'
+//});
 
 
 //pubnub.history({
@@ -48,12 +52,30 @@ pubnub.where_now({
 //    channel : 'abcd'
 //})
 
+pubnub.publish({
+    channel  : channel,
+    message  : message
+});
 
-/*
-pubnub_pam.publish({
+pubnub.publish({
     channel  : channel,
     message  : message,
     callback : log,
     error    : log
 });
-*/
+
+pubnub.subscribe({
+    'channel' : 'a',
+    'connect' : function(r) {
+        console.log('CONNECT : ' + r);
+    },
+    'callback' : function(r) {
+        console.log(JSON.stringify(r));
+    }
+})
+
+pubnub.subscribe({
+    'channel' : 'b',
+    'status' : slog,
+    'result' : rlog
+})

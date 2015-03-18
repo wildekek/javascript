@@ -177,7 +177,6 @@ function xdr( setup ) {
 
                 http_data['response']['status'] = statusCode;
                 http_data['response']['body'] = body;
-
                 switch(statusCode) {
                     case 401:
                     case 402:

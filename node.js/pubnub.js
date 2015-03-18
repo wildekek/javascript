@@ -593,16 +593,38 @@ function PN_API(setup) {
         }
     }
 
+    function get_v4_cb_data(response) {
+        var callback_data = {};
+        if (typeof response == 'object') {
+            if (response['error']) {
+                if (response['message']) {
+                    callback_data['message'] = response['message'];
+                }
+
+                if (response['payload']) {
+                    callback_data['payload'] = response['payload'];
+                }
+                return callback_data;
+            }
+            if (response['payload']) {
+                return response['payload'];
+            }
+        }
+        return response; 
+    }
+
     function _invoke_callback_v4(response, http_data, op_params, callback, err) {
         //console.log('V4 callback');
         var v4_cb_data = objectShallowCopy(http_data, op_params);
-        v4_cb_data['data'] = response;
+        v4_cb_data['data'] = get_v4_cb_data(response);
         _invoke_callback(v4_cb_data, callback, err);
     }
 
     function CR(args, callback, url1, data) {
-            var callback        = args['result'] || args['callback']      || callback || result_cb
-            ,   err             = args['status'] || args['error']         || error    || status_cb
+            var callback        = args['callback']      || callback
+            ,   err             = args['error']         || error
+            ,   result          = args['result'] || result_cb
+            ,   status          = args['status'] || status_cb
             ,   op_params       = setup['op_params']    || {}
             ,   jsonp           = jsonp_cb();
 
@@ -625,10 +647,13 @@ function PN_API(setup) {
                 callback : jsonp,
                 data     : _get_url_params(data),
                 success  : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
+
                 },
                 url      : url
             });
@@ -735,7 +760,9 @@ function PN_API(setup) {
         },
         'set_heartbeat' : function(heartbeat) {
             PRESENCE_HB = validate_presence_heartbeat(heartbeat, PRESENCE_HB_INTERVAL, error);
-            PRESENCE_HB_INTERVAL = (PRESENCE_HB - 3 >= 1)?PRESENCE_HB - 3:1;
+            if (!PRESENCE_HB || PRESENCE_HB < PRESENCE_HB_INTERVAL) {
+                PRESENCE_HB_INTERVAL = (PRESENCE_HB - 3 >= 1)?PRESENCE_HB - 3:1;
+            }
             CONNECT();
             _presence_heartbeat();
         },
@@ -951,10 +978,12 @@ function PN_API(setup) {
             });
         */
         'history' : function( args, callback ) {
-            var callback         = args['result'] || args['callback'] || callback || result_cb
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   count            = args['count']    || args['limit'] || 100
             ,   reverse          = args['reverse']  || "false"
-            ,   err              = args['status'] || args['error']    || status_cb
             ,   auth_key         = args['auth_key'] || AUTH_KEY
             ,   cipher_key       = args['cipher_key']
             ,   channel          = args['channel']
@@ -974,7 +1003,7 @@ function PN_API(setup) {
 
             // Make sure we have a Channel
             if (!channel && !channel_group) return error('Missing Channel');
-            if (!callback)      return error('Missing Callback');
+            if (!callback && !result)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
 
             params['stringtoken'] = 'true';
@@ -1012,16 +1041,13 @@ function PN_API(setup) {
                             decrypted_messages['push']((new_message));
                         }
                     }
-                    //callback([decrypted_messages, response[1], response[2]]);
-                    //var data = objectShallowCopy(http_data, op_params);
-                    //data['data'] = [decrypted_messages, response[1], response[2]];
-                    _invoke_callback_v4([decrypted_messages, response[1], response[2]], http_data, op_params, callback, err);
+
+                    !callback && _invoke_callback_v4([decrypted_messages, response[1], response[2]], http_data, op_params, result, status);
+                    callback && _invoke_callback([decrypted_messages, response[1], response[2]], callback, err);
                 },
                 fail     : function(response, http_data) {
-                    //console.log(JSON.stringify(http_data));
-                    //_invoke_error(response, err);
-                    //_invoke_callback(objectShallowCopy(http_data, op_params), err);
-                    _invoke_callback_v4(response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                 },
                 url      : [
                     STD_ORIGIN, 'v2', 'history', 'sub-key',
@@ -1037,7 +1063,10 @@ function PN_API(setup) {
             });
         */
         'replay' : function(args, callback) {
-            var callback    = callback || args['callback'] || function(){}
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   auth_key    = args['auth_key'] || AUTH_KEY
             ,   source      = args['source']
             ,   destination = args['destination']
@@ -1118,8 +1147,12 @@ function PN_API(setup) {
                 data     : _get_url_params({ 'uuid' : UUID, 'auth' : AUTH_KEY }),
                 timeout  : NON_SUBSCRIBE_TIMEOUT,
                 url      : [STD_ORIGIN, 'time', jsonp],
-                success  : function(response) { callback(response[0]) },
-                fail     : function() { callback(0) }
+                success  : function(response, http_data) {
+                    callback(response[0]);
+                },
+                fail     : function(response, http_data) { 
+                    callback(0);
+                }
             });
         },
 
@@ -1139,11 +1172,15 @@ function PN_API(setup) {
             var msg      = args['message'];
             if (!msg) return error('Missing Message');
 
-            var callback = callback || args['result'] || args['callback'] || msg['callback'] || result_cb || function(){}
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   channel  = args['channel'] || msg['channel']
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   cipher_key = args['cipher_key']
-            ,   err      = args['status'] || args['error'] || msg['error'] || status_cb || function() {}
+            ,   err      = args['error'] || msg['error']
+            ,   status   = args['status'] || status_cb
             ,   post     = args['post'] || false
             ,   store    = ('store_in_history' in args) ? args['store_in_history']: true
             ,   jsonp    = jsonp_cb()
@@ -1182,11 +1219,13 @@ function PN_API(setup) {
                 url      : url,
                 data     : _get_url_params(params),
                 fail     : function(response, http_data){
-                    _invoke_callback_v4(response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                     publish(1);
                 },
                 success  : function(response, http_data) {
-                    _invoke_callback_v4(response, http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                     publish(1);
                 },
                 mode     : (post)?'POST':'GET'
@@ -1203,8 +1242,10 @@ function PN_API(setup) {
             var channel       = args['channel']
             ,   channel_group = args['channel_group']
             ,   auth_key      = args['auth_key']    || AUTH_KEY
-            ,   callback      = args['result']      || callback || args['callback'] || result_cb
-            ,   err           = args['status']      || args['error']       || status_cb
+            ,   callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
 
             TIMETOKEN   = 0;
             //SUB_RESTORE = 1;    REVISIT !!!!
@@ -1269,15 +1310,9 @@ function PN_API(setup) {
         'subscribe' : function( args, callback ) {
             var channel         = args['channel']
             ,   channel_group   = args['channel_group']
-            ,   result          = result              || args['result']
-            ,   status          = status              || args['status']
+            ,   result          = args['result']      || result
+            ,   status          = args['status']      || status
             ,   auth_key        = args['auth_key']    || AUTH_KEY
-            /*
-            ,   connect         = args['connect']     || function(){}
-            ,   reconnect       = args['reconnect']   || function(){}
-            ,   disconnect      = args['disconnect']  || function(){}
-            ,   errcb           = args['error']       || function(){}
-            */
             ,   idlecb          = args['idle']        || function(){}
             ,   presence        = args['presence']    || 0
             ,   noheresync      = args['noheresync']  || 0
@@ -1297,11 +1332,28 @@ function PN_API(setup) {
                 'config'            : getConfig()
             };
 
-            function callback(message, http_data, message_envelope, channel, latency, real_channel) {
+            var err = function(r, http_data){
+
+                if (status) {
+                    var status_event = http_data || {};
+
+                    status_event.channel = channel;
+                    status_event.category = 'error';
+
+                    status && _invoke_callback_v4(r, http_data, op_params, status);
+                } else {
+                    var errcb = args['error'];
+                    errcb && _invoke_error(r, errcb);
+
+                }
+              
+            };
+
+            var callback = args['callback'] || function (message, http_data, message_envelope, channel, latency, real_channel) {
                 _invoke_callback_v4(message, http_data, op_params, result, status);
             }
 
-            function connect(channel, http_data) {
+            var connect = args['connect'] || function(channel, http_data) {
                 var status_event = http_data || {};
 
                 status_event.channel = channel;
@@ -1310,7 +1362,7 @@ function PN_API(setup) {
                 status && status(http_data);
             }
 
-            function disconnect(channel, http_data) {
+            var disconnect = args['disconnect'] || function(channel, http_data) {
                 var status_event = http_data || {};
                 
                 status_event.channel = channel;
@@ -1319,7 +1371,7 @@ function PN_API(setup) {
                 status && status(status_event);
             }
 
-            function reconnect(channel, http_data) {
+            var reconnect = args['reconnect'] || function(channel, http_data) {
                 var status_event = http_data || {};
 
                 status_event.channel = channel;
@@ -1523,13 +1575,13 @@ function PN_API(setup) {
                 SUB_RECEIVER = xdr({
                     timeout  : sub_timeout,
                     callback : jsonp,
-                    fail     : function(response) {
+                    fail     : function(response, http_data) {
                         if (response['error'] && response['service']) {
-                            _invoke_error(response, errcb);
+                            err(response, http_data);
                             _test_connection(1);
                         } else {
                             SELF['time'](function(success){
-                                !success && ( _invoke_error(response, errcb));
+                                !success && ( err(response, http_data));
                                 _test_connection(success);
                             });
                         }
@@ -1661,8 +1713,10 @@ function PN_API(setup) {
             PUBNUB.here_now({ channel : 'my_chat', callback : fun });
         */
         'here_now' : function( args, callback ) {
-            var callback = args['result'] || args['callback'] || callback || result_cb
-            ,   err      = args['status'] || args['error']    || status_cb
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   channel  = args['channel']
             ,   channel_group = args['channel_group']
@@ -1683,7 +1737,7 @@ function PN_API(setup) {
             if (state) data['state'] = 1;
 
             // Make sure we have a Channel
-            if (!callback)      return error('Missing Callback');
+            if (!callback && !result)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
 
             var url = [
@@ -1705,10 +1759,12 @@ function PN_API(setup) {
                 callback : jsonp,
                 data     : _get_url_params(data),
                 success  : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                 },
                 url      : url
             });
@@ -1718,8 +1774,10 @@ function PN_API(setup) {
             PUBNUB.current_channels_by_uuid({ channel : 'my_chat', callback : fun });
         */
         'where_now' : function( args, callback ) {
-            var callback = args['result'] || args['callback'] || callback || result_cb
-            ,   err      = args['status'] || args['error']    || status_cb
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   jsonp    = jsonp_cb()
             ,   uuid     = args['uuid']     || UUID
@@ -1734,7 +1792,7 @@ function PN_API(setup) {
 
 
             // Make sure we have a Channel
-            if (!callback)      return error('Missing Callback');
+            if (!callback && !result)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
 
             if (jsonp != '0') { data['callback'] = jsonp; }
@@ -1743,10 +1801,12 @@ function PN_API(setup) {
                 callback : jsonp,
                 data     : _get_url_params(data),
                 success  : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                 },
                 url      : [
                     STD_ORIGIN, 'v2', 'presence',
@@ -1757,8 +1817,10 @@ function PN_API(setup) {
         },
 
         'state' : function(args, callback) {
-            var callback = args['result'] || args['callback'] || callback || result_cb
-            ,   err      = args['status'] || args['error']    || status_cb
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   auth_key = args['auth_key'] || AUTH_KEY
             ,   jsonp    = jsonp_cb()
             ,   state    = args['state']
@@ -1821,10 +1883,12 @@ function PN_API(setup) {
                 callback : jsonp,
                 data     : _get_url_params(data),
                 success  : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                 },
                 url      : url
 
@@ -1844,8 +1908,10 @@ function PN_API(setup) {
             });
         */
         'grant' : function( args, callback ) {
-            var callback = args['result'] || args['callback'] || callback || result_cb
-            ,   err      = args['status'] || args['error']    || status_cb
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   channel         = args['channel']
             ,   channel_group   = args['channel_group']
             ,   jsonp           = jsonp_cb()
@@ -1862,7 +1928,7 @@ function PN_API(setup) {
                 'config'            : getConfig()
             };
 
-            if (!callback)      return error('Missing Callback');
+            if (!callback && !result)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
             if (!PUBLISH_KEY)   return error('Missing Publish Key');
             if (!SECRET_KEY)    return error('Missing Secret Key');
@@ -1905,12 +1971,12 @@ function PN_API(setup) {
                 callback : jsonp,
                 data     : data,
                 success  : function(response, http_data) {
-                    //console.log(JSON.stringify(response));
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    //console.log(JSON.stringify(response));
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                 },
                 url      : [
                     STD_ORIGIN, 'v1', 'auth', 'grant' ,
@@ -1931,9 +1997,10 @@ function PN_API(setup) {
          */
 
         'mobile_gw_provision' : function( args ) {
-
-            var callback = args['result'] || args['callback'] || callback || result_cb
-            ,   err      = args['status'] || args['error']    || status_cb
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   auth_key       = args['auth_key'] || AUTH_KEY
             ,   jsonp          = jsonp_cb()
             ,   channel        = args['channel']
@@ -1974,10 +2041,12 @@ function PN_API(setup) {
                 callback : jsonp,
                 data     : params,
                 success  : function(response, http_data) {
-                    _invoke_callback_v4(response, http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    _invoke_callback_v4(response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                 },
                 url      : url
             });
@@ -1995,8 +2064,10 @@ function PN_API(setup) {
             });
         */
         'audit' : function( args, callback ) {
-            var callback = args['result'] || args['callback'] || callback || result_cb
-            ,   err      = args['status'] || args['error']    || status_cb
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             ,   channel         = args['channel']
             ,   channel_group   = args['channel_group']
             ,   auth_key        = args['auth_key']
@@ -2010,7 +2081,7 @@ function PN_API(setup) {
             };
 
             // Make sure we have a Channel
-            if (!callback)      return error('Missing Callback');
+            if (!callback && !result)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
             if (!PUBLISH_KEY)   return error('Missing Publish Key');
             if (!SECRET_KEY)    return error('Missing Secret Key');
@@ -2044,10 +2115,12 @@ function PN_API(setup) {
                 callback : jsonp,
                 data     : data,
                 success  : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    _invoke_callback_v4(response.payload || response, http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                 },
                 url      : [
                     STD_ORIGIN, 'v1', 'auth', 'audit' ,
@@ -2089,8 +2162,10 @@ function PN_API(setup) {
             return generate_channel_list(CHANNELS, true);
         },
         'presence_heartbeat' : function(args) {
-            var callback = args['result'] || args['callback'] || callback || result_cb;fNON
-            var   err      = args['status'] || args['error']    || status_cb;
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
             var jsonp    = jsonp_cb();
             var data     = { 'uuid' : UUID, 'auth' : AUTH_KEY };
 
@@ -2125,10 +2200,12 @@ function PN_API(setup) {
                     'heartbeat'
                 ],
                 success  : function(response, http_data) {
-                    _invoke_callback_v4(http_data, op_params, callback, err);
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    _invoke_callback_v4(http_data, op_params, err);
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
                 },
             });
         },
@@ -2396,7 +2473,6 @@ function xdr( setup ) {
 
                 http_data['response']['status'] = statusCode;
                 http_data['response']['body'] = body;
-
                 switch(statusCode) {
                     case 401:
                     case 402:

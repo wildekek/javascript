@@ -65,6 +65,48 @@ groups     = []
 describe('Pubnub', function() {
 
     this.timeout(180000);
+
+    before(function(){
+        pubnub_pam.revoke({})
+        pubnub.channel_group_list_groups({
+            result : function(r) {
+                var groups = r.groups;
+                for (var i in groups) {
+                    var group = groups[i];
+                    pubnub.channel_group_remove_group({
+                        channel_group : group
+                    })
+                }
+            }
+        });
+        pubnub.channel_group_list_namespaces({
+            result : function(r) {
+                var namespaces = r.namespaces;
+                for (var i in namespaces) {
+                    var namespace = namespaces[i];
+                    pubnub.channel_group_remove_namespace({
+                        namespace : namespace
+                    })
+                }
+            }
+        });
+
+    })
+
+    after(function(){
+        for (var i in namespaces) {
+            var namespace = namespaces[i];
+            pubnub.channel_group_remove_namespace({
+                namespace : namespace
+            })
+        }
+        for (var i in groups) {
+            var group = groups[i];
+            pubnub.channel_group_remove_group({
+                channel_group : group
+            })
+        }
+    })
     describe('#publish()', function(){
         it('should publish strings without error', function(done){
             var ch = channel + '-' + ++count;
@@ -145,6 +187,54 @@ describe('Pubnub', function() {
                 }
             });
         })  
+    })
+
+    describe('#subscribe()', function(){
+        it('should pass plain text to callback on decryption error', function(done){
+            var ch = channel + '-' + ++count;
+            pubnub_enc.subscribe({channel : ch ,
+                status : function(ev) {
+                    if (ev.category === 'connect') {
+                        pubnub.publish({channel: ch , message : message_string,
+                            result : function(response) {
+                                assert.deepEqual(response.data[0],1);
+                            }
+                        });
+                    }
+                    if (ev.category === 'error') {
+                        assert.ok(false);
+                        pubnub_enc.unsubscribe({channel : ch});
+                        done();      
+                    }
+                },
+                result : function(response) {
+                    assert.deepEqual(response.data,message_string);
+                    pubnub_enc.unsubscribe({channel : ch});
+                    done();
+                }
+            })
+        })
+        it('should take an error callback which will be invoked if channel permission not there', function(done){
+            var channel = 'channel' + Date.now();
+            var auth_key = 'abcd';
+            pubnub_pam.subscribe({
+                'auth_key' : auth_key,
+                'channel' : channel,
+                'status'   : function(r) {
+                    if (r.category === 'error') {
+                        assert.deepEqual(r.data['message'],'Forbidden');
+                        assert.ok(r.data['payload'], "Payload should be there in error response");
+                        assert.ok(r.data['payload']['channels'], "Channels should be there in error payload");
+                        assert.ok(in_list_deep(r.data['payload']['channels'], channel), "Channel should be there in channel list");
+                        pubnub_pam.unsubscribe({'channel' : channel });
+                        done();
+                    }
+                },
+                'result' : function(r) {
+                    assert.ok(false, "Callback should not get invoked if permission not there");
+                }
+            })
+        })
     })
     describe('#history() with encryption', function(){
         var history_channel = channel + '-history-enc';
@@ -402,7 +492,7 @@ describe('Pubnub', function() {
                     pubnub.state({
                         channel  : ch ,
                         uuid     : uuid,
-                        callback : function(response) {
+                        result : function(response) {
                             assert.deepEqual(response.data, state);
                             done();
                         },
@@ -556,11 +646,11 @@ describe('Pubnub', function() {
                                         setTimeout(function(){
                                             pubnub.channel_group_list_channels({
                                                 channel_group : channel_group,
-                                                callback : function(r) {
+                                                result : function(r) {
                                                     assert.deepEqual([], r.data.channels);
                                                     done();
                                                 },
-                                                error    : function(r) {
+                                                status    : function(r) {
                                                     assert.ok(false, "Error occurred in getting group " + JSON.stringify(r));
                                                     done();
                                                 } 
@@ -892,10 +982,10 @@ describe('Pubnub', function() {
                     channel : grant_channel_local,
                     read : true,
                     write : true,
-                    callback : function(response) {
+                    result : function(response) {
                         pubnub.audit({
                             channel : grant_channel_local,
-                            callback : function(response) {
+                            result : function(response) {
                                 assert.deepEqual(response.data.channels[grant_channel_local].r,1);
                                 assert.deepEqual(response.data.channels[grant_channel_local].w,1);
                                 assert.deepEqual(response.data.subscribe_key,sub_key);
@@ -956,6 +1046,7 @@ describe('Pubnub', function() {
                             channel : grant_channel_local,
                             auth_key : auth_key,
                             result : function(response) {
+
                                 assert.deepEqual(response.data.auths.abcd.r,1);
                                 assert.deepEqual(response.data.auths.abcd.w,0);
                                 pubnub.history({
@@ -963,16 +1054,18 @@ describe('Pubnub', function() {
                                     'auth_key' : auth_key,
                                     'result' : function(response) {
                                         assert.ok(true)
+                                        //console.log(JSON.stringify(response));
                                         pubnub.publish({
                                             'channel' : grant_channel_local,
                                             'auth_key' : auth_key,
                                             'message' : 'Test',
                                             'result': function(response) {
+                                                //console.log(JSON.stringify(response));
                                                 assert.ok(false);
                                                 done();
                                             },
                                             'status'   : function(response) {
-                                                //console.log(JSON.stringify(response));
+                                                //console.log(JSON.stringify(response.data));
                                                 assert.deepEqual(response.data.message, "Forbidden");
                                                 in_list_deep(response.data.payload.channels,grant_channel_local);
                                                 assert.ok(true);
@@ -1272,9 +1365,9 @@ describe('Pubnub', function() {
            // var auth_key = "abcd";
             var pubnub = PUBNUB.init({
                 origin            : 'pubsub.pubnub.com',
-                publish_key       : 'ds-pam' ,
-                subscribe_key     : 'ds-pam' ,
-                secret_key        : 'ds-pam' ,
+                publish_key       : 'pam' ,
+                subscribe_key     : 'pam' ,
+                secret_key        : 'pam' ,
                 build_u       : true
             });
             setTimeout(function() {
@@ -1282,11 +1375,11 @@ describe('Pubnub', function() {
                     //auth_key : auth_key,
                     read : true,
                     write : true,
-                    callback : function(response) {
+                    result : function(response) {
                         pubnub.audit({
                             //auth_key : auth_key,
                             result : function(response) {
-                                assert.deepEqual(response.data.subscribe_key,'ds-pam');
+                                assert.deepEqual(response.data.subscribe_key,'pam');
                                 pubnub.history({
                                     'channel'  : grant_channel_local,
                                     'result' : function(response) {

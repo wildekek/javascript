@@ -18,9 +18,21 @@ function reconnect(m) {log('RECONNECT',m)}
 function error(m) {log('ERROR',m)}
 function callback(m) {log('CALLBACK',m)}
 
+pubnub.subscribe({
+	channel : 'a',
+	connect  : function(se) {
+		console.log('CONNECT : ' + JSON.stringify(se,null,2));
+	},
+	error : function(e) {
+		console.log(JSON.stringify(e));
+	},
+	callback    : function(data) {
+		console.log(JSON.stringify(data,null,2));
+	}
+});
 /*
 pubnub.subscribe({
-	channel : channel,
+	channel : 'a',
 	status  : function(se) {
 		console.log(JSON.stringify(se,null,2));
 	},
@@ -28,8 +40,7 @@ pubnub.subscribe({
 		console.log(JSON.stringify(data,null,2));
 	}
 });
-*/
-
+/*
 pubnub.publish({
 	channel : channel,
 	message : 'hi',
@@ -40,3 +51,4 @@ pubnub.publish({
 		console.log(JSON.stringify(data, null, 2));
 	}
 })
+*/

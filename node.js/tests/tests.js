@@ -10,9 +10,9 @@ var pubnub = PUBNUB.init({
 });
 
 var pubnub_pam = PUBNUB.init({
-    publish_key     : 'ds-pam',
-    subscribe_key   : 'ds-pam',
-    secret_key      : 'ds-pam',
+    publish_key     : 'pam',
+    subscribe_key   : 'pam',
+    secret_key      : 'pam',
     origin          : 'pubsub.pubnub.com',
     build_u       : true
 });
@@ -60,9 +60,10 @@ groups     = []
 
 describe('Pubnub', function() {
 
-    this.timeout(180000);
+    this.timeout(30000);
     
     before(function(){
+        pubnub_pam.revoke({})
         pubnub.channel_group_list_groups({
             callback : function(r) {
                 var groups = r.groups;
@@ -85,6 +86,7 @@ describe('Pubnub', function() {
                 }
             }
         });
+
     })
 
     after(function(){
