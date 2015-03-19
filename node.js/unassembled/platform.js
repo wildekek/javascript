@@ -106,7 +106,7 @@ function xdr( setup ) {
             }
             catch (r) {
                 http_data['response']['body'] = body;
-                return done(1, http_data)
+                return done(1, null, http_data)
             }
 
             http_data['response']['body']          = body;
@@ -130,7 +130,7 @@ function xdr( setup ) {
         }
         ,   timer  = timeout( function(){
                 http_data['category'] = 'timeout';
-                done(1, http_data)
+                done(1, null, http_data)
             } , xhrtme );
 
     data['pnsdk'] = PNSDK;
@@ -199,14 +199,14 @@ function xdr( setup ) {
         });
         request.timeout = xhrtme;
         request.on( 'error', function() {
-            done( 1, http_data );
+            done( 1, null, http_data );
         } );
 
         if (mode == 'POST') request.write(payload);
         request.end();
 
     } catch(e) {
-        done(0);
+        done(0, null, http_data);
         return xdr(setup);
     }
 
