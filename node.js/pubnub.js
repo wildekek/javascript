@@ -1310,8 +1310,8 @@ function PN_API(setup) {
         'subscribe' : function( args, callback ) {
             var channel         = args['channel']
             ,   channel_group   = args['channel_group']
-            ,   result          = args['result']      || result
-            ,   status          = args['status']      || status
+            ,   result          = args['result']      || result_cb
+            ,   status          = args['status']      || status_cb
             ,   auth_key        = args['auth_key']    || AUTH_KEY
             ,   idlecb          = args['idle']        || function(){}
             ,   presence        = args['presence']    || 0
