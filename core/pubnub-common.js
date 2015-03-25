@@ -615,6 +615,7 @@ function PN_API(setup) {
     function _invoke_callback_v4(response, http_data, op_params, callback, err) {
         //console.log('V4 callback');
         var v4_cb_data = objectShallowCopy(http_data, op_params);
+        console.log(JSON.stringify(v4_cb_data, null, 2));
         v4_cb_data['data'] = get_v4_cb_data(response);
         _invoke_callback(v4_cb_data, callback, err);
     }
@@ -1320,6 +1321,7 @@ function PN_API(setup) {
             ,   sub_timeout     = args['timeout']     || SUB_TIMEOUT
             ,   windowing       = args['windowing']   || SUB_WINDOWING
             ,   state           = args['state']
+            ,   V2              = args['v2']
             ,   heartbeat       = args['heartbeat'] || args['pnexpires']
             ,   restore         = args['restore'] || SUB_RESTORE;
 
@@ -1348,8 +1350,17 @@ function PN_API(setup) {
               
             };
 
-            var callback = args['callback'] || function (message, http_data, message_envelope, channel, latency, real_channel) {
+            var callback = args['callback'] || function (message, http_data, message_envelope, channel, latency, real_channel, expanded) {
+                if (message_envelope) http_data['message_envelope'] = message_envelope;
+                if (channel)        http_data['channel']        = channel;
+                if (latency)        http_data['latency']        = latency;
+                if (real_channel)   http_data['real_channel']   = real_channel;
+                if (expanded)       http_data['expanded']       = expanded;
                 _invoke_callback_v4(message, http_data, op_params, result, status);
+            }
+
+            var callback2 = args['callback'] || function (message, http_data, message_envelope, channel, real_channel, expanded) {
+                callback && callback(message, http_data, message_envelope, channel, null, real_channel, expanded);
             }
 
             var connect = args['connect'] || function(channel, http_data) {
@@ -1410,7 +1421,7 @@ function PN_API(setup) {
                         connected           : settings.connected,
                         disconnected        : settings.disconnected,
                         subscribed          : 1,
-                        callback            : SUB_CALLBACK = callback,
+                        callback            : SUB_CALLBACK = (V2)?callback2:callback,
                         'cipher_key'        : args['cipher_key'],
                         connect             : connect,
                         disconnect          : disconnect,
@@ -1467,7 +1478,7 @@ function PN_API(setup) {
                         connected    : settings.connected,
                         disconnected : settings.disconnected,
                         subscribed   : 1,
-                        callback     : SUB_CALLBACK = callback,
+                        callback     : SUB_CALLBACK = (V2)?callback2:callback,
                         'cipher_key' : args['cipher_key'],
                         connect      : connect,
                         disconnect   : disconnect,
@@ -1481,7 +1492,8 @@ function PN_API(setup) {
                     SELF['subscribe']({
                         'channel_group'  : channel_group + PRESENCE_SUFFIX,
                         'callback' : presence,
-                        'restore'  : restore
+                        'restore'  : restore,
+                        'v2'       : V2
                     });
 
                     // Presence Subscribed?
@@ -1570,6 +1582,210 @@ function PN_API(setup) {
 
                 if (PRESENCE_HB) data['heartbeat'] = PRESENCE_HB;
 
+                function _change_key(o, ok, nk) {
+                    if (typeof o[ok] !== 'undefined'){
+                        var t = o[ok];
+                        o[nk] = t;
+                        delete o[ok];
+                    }
+                    return true;
+                }
+                function _v2_expand_keys(m) {
+                    m['o'] && _change_key(m['o'], 't', 'timetoken') && _change_key(m['o'], 'r', 'region_code')
+                    m['p'] && _change_key(m['p'], 't', 'timetoken') && _change_key(m['p'], 'r', 'region_code') 
+                    _change_key(m,'i','issuing_client_id');
+                    _change_key(m,'s','sequence_number');
+                    _change_key(m,'o','origination_timetoken');
+                    _change_key(m,'p','publish_timetoken');
+                    _change_key(m,'k','subscribe_key');
+                    _change_key(m,'c','channel');
+                    _change_key(m,'b','subscription_match');
+                    _change_key(m,'r','replication_map');
+                    _change_key(m,'ear','eat_after_reading');
+                    _change_key(m,'d','payload');
+                    _change_key(m,'u','user_metadata');
+                    _change_key(m,'w','waypoint_list');
+                    return m;
+                }
+
+
+                function subscribeSuccessHandlerV1(messages, http_data) {
+                    //console.log(JSON.stringify(http_data));
+                    // Check for Errors
+                    if (!messages || (
+                        typeof messages == 'object' &&
+                        'error' in messages         &&
+                        messages['error']
+                    )) {
+                        err(messages['error'], http_data);
+                        return timeout( CONNECT, 1000 );
+                    }
+
+                    // User Idle Callback
+                    idlecb(messages[1]);
+
+                    // Restore Previous Connection Point if Needed
+                    TIMETOKEN = !TIMETOKEN               &&
+                                SUB_RESTORE              &&
+                                db['get'](SUBSCRIBE_KEY) || messages[1];
+
+
+                    _update_connection_states_and_invoke_callbacks(1, http_data);
+
+
+                    if (RESUMED && !SUB_RESTORE) {
+                            TIMETOKEN = 0;
+                            RESUMED = false;
+                            // Update Saved Timetoken
+                            db['set']( SUBSCRIBE_KEY, 0 );
+                            timeout( _connect, windowing );
+                            return;
+                    }
+
+                    // Invoke Memory Catchup and Receive Up to 100
+                    // Previous Messages from the Queue.
+                    if (backfill) {
+                        TIMETOKEN = 10000;
+                        backfill  = 0;
+                    }
+
+                    // Update Saved Timetoken
+                    db['set']( SUBSCRIBE_KEY, messages[1] );
+
+                    // Route Channel <---> Callback for Message
+                    var next_callback = (function() {
+                        var channels = '';
+                        var channels2 = '';
+
+                        if (messages.length > 3) {
+                            channels  = messages[3];
+                            channels2 = messages[2];
+                        } else if (messages.length > 2) {
+                            channels = messages[2];
+                        } else {
+                            channels =  map(
+                                generate_channel_list(CHANNELS), function(chan) { return map(
+                                    Array(messages[0].length)
+                                    .join(',').split(','),
+                                    function() { return chan; }
+                                ) }).join(',')
+                        }
+
+                        var list  = channels.split(',');
+                        var list2 = (channels2)?channels2.split(','):[];
+
+                        return function() {
+                            var channel  = list.shift()||SUB_CHANNEL;
+                            var channel2 = list2.shift();
+
+                            var chobj = {};
+
+                            if (channel2) {
+                                if (channel && channel.indexOf('-pnpres') >= 0 
+                                    && channel2.indexOf('-pnpres') < 0) {
+                                    channel2 += '-pnpres';
+                                }
+                                chobj = CHANNEL_GROUPS[channel2] || CHANNELS[channel2] || {'callback' : function(){}};
+                            } else {
+                                chobj = CHANNELS[channel];
+                            }
+
+                            var r = [
+                                chobj
+                                .callback||SUB_CALLBACK,
+                                channel.split(PRESENCE_SUFFIX)[0]
+                            ];
+                            channel2 && r.push(channel2.split(PRESENCE_SUFFIX)[0]);
+                            return r;
+                        };
+                    })();
+
+                    var latency = detect_latency(+messages[1]);
+                    each( messages[0], function(msg) {
+                        var next = next_callback();
+                        var decrypted_msg = decrypt(msg,
+                            (CHANNELS[next[1]])?CHANNELS[next[1]]['cipher_key']:null);
+                        next[0] && next[0]( decrypted_msg, http_data, messages, next[2] || next[1], latency, next[1]);
+                    });
+
+                    timeout( _connect, windowing );
+                }
+
+                function subscribeSuccessHandlerV2(response, http_data) {
+
+                    //SUB_RECEIVER = null;
+                    // Check for Errors
+                    if (!response || (
+                        typeof response == 'object' &&
+                        'error' in response         &&
+                        response['error']
+                    )) {
+                        err(response['error'], http_data);
+                        return timeout( CONNECT, SECOND );
+                    }
+
+                    // User Idle Callback
+                    idlecb(response['t']['t']);
+
+                    // Restore Previous Connection Point if Needed
+                    TIMETOKEN = !TIMETOKEN               &&
+                                SUB_RESTORE              &&
+                                db['get'](SUBSCRIBE_KEY) || response['t']['t'];
+
+                    // Connect
+                    each_channel(function(channel){
+                        if (channel.connected) return;
+                        channel.connected = 1;
+                        channel.connect(channel.name, http_data);
+                    });
+
+                    // Connect for channel groups
+                    each_channel_group(function(channel_group){
+                        if (channel_group.connected) return;
+                        channel_group.connected = 1;
+                        channel_group.connect(channel_group.name, http_data);
+                    });
+
+                    if (RESUMED && !SUB_RESTORE) {
+                            TIMETOKEN = 0;
+                            RESUMED = false;
+                            // Update Saved Timetoken
+                            db['set']( SUBSCRIBE_KEY, 0 );
+                            timeout( _connect, windowing );
+                            return;
+                    }
+
+                    // Invoke Memory Catchup and Receive Up to 100
+                    // Previous Messages from the Queue.
+                    if (backfill) {
+                        TIMETOKEN = 10000;
+                        backfill  = 0;
+                    }
+
+                    // Update Saved Timetoken
+                    db['set']( SUBSCRIBE_KEY, response['t']['t'] );
+
+                    var messages = response['m'];
+
+                    for (var i in messages) {
+                        var message     = messages[i]
+                        ,   channel     = message['c']
+                        ,   sub_channel = message['b'];
+
+                        var chobj = CHANNELS[sub_channel] || CHANNEL_GROUPS[sub_channel] || 
+                                    CHANNELS[channel];
+
+                        if (chobj) {
+                            var callback = chobj['callback'];
+                            callback && 
+                            callback(message['d'], http_data, message, message['b'] || message['c'], 
+                                message['c'], _v2_expand_keys(message));
+                        }
+                    }
+
+                    timeout( _connect, windowing );
+                }
+
                 start_presence_heartbeat();
                 SUB_RECEIVER = xdr({
                     timeout  : sub_timeout,
@@ -1587,112 +1803,11 @@ function PN_API(setup) {
                     },
                     data     : _get_url_params(data),
                     url      : [
-                        SUB_ORIGIN, 'subscribe',
+                        SUB_ORIGIN, ((V2)?'v2/':'') + 'subscribe',
                         SUBSCRIBE_KEY, encode(channels),
                         jsonp, TIMETOKEN
                     ],
-                    success : function(messages, http_data) {
-
-                        //console.log(JSON.stringify(http_data));
-                        // Check for Errors
-                        if (!messages || (
-                            typeof messages == 'object' &&
-                            'error' in messages         &&
-                            messages['error']
-                        )) {
-                            errcb(messages['error']);
-                            return timeout( CONNECT, 1000 );
-                        }
-
-                        // User Idle Callback
-                        idlecb(messages[1]);
-
-                        // Restore Previous Connection Point if Needed
-                        TIMETOKEN = !TIMETOKEN               &&
-                                    SUB_RESTORE              &&
-                                    db['get'](SUBSCRIBE_KEY) || messages[1];
-
-
-                        _update_connection_states_and_invoke_callbacks(1, http_data);
-
-
-                        if (RESUMED && !SUB_RESTORE) {
-                                TIMETOKEN = 0;
-                                RESUMED = false;
-                                // Update Saved Timetoken
-                                db['set']( SUBSCRIBE_KEY, 0 );
-                                timeout( _connect, windowing );
-                                return;
-                        }
-
-                        // Invoke Memory Catchup and Receive Up to 100
-                        // Previous Messages from the Queue.
-                        if (backfill) {
-                            TIMETOKEN = 10000;
-                            backfill  = 0;
-                        }
-
-                        // Update Saved Timetoken
-                        db['set']( SUBSCRIBE_KEY, messages[1] );
-
-                        // Route Channel <---> Callback for Message
-                        var next_callback = (function() {
-                            var channels = '';
-                            var channels2 = '';
-
-                            if (messages.length > 3) {
-                                channels  = messages[3];
-                                channels2 = messages[2];
-                            } else if (messages.length > 2) {
-                                channels = messages[2];
-                            } else {
-                                channels =  map(
-                                    generate_channel_list(CHANNELS), function(chan) { return map(
-                                        Array(messages[0].length)
-                                        .join(',').split(','),
-                                        function() { return chan; }
-                                    ) }).join(',')
-                            }
-
-                            var list  = channels.split(',');
-                            var list2 = (channels2)?channels2.split(','):[];
-
-                            return function() {
-                                var channel  = list.shift()||SUB_CHANNEL;
-                                var channel2 = list2.shift();
-
-                                var chobj = {};
-
-                                if (channel2) {
-                                    if (channel && channel.indexOf('-pnpres') >= 0 
-                                        && channel2.indexOf('-pnpres') < 0) {
-                                        channel2 += '-pnpres';
-                                    }
-                                    chobj = CHANNEL_GROUPS[channel2] || CHANNELS[channel2] || {'callback' : function(){}};
-                                } else {
-                                    chobj = CHANNELS[channel];
-                                }
-
-                                var r = [
-                                    chobj
-                                    .callback||SUB_CALLBACK,
-                                    channel.split(PRESENCE_SUFFIX)[0]
-                                ];
-                                channel2 && r.push(channel2.split(PRESENCE_SUFFIX)[0]);
-                                return r;
-                            };
-                        })();
-
-                        var latency = detect_latency(+messages[1]);
-                        each( messages[0], function(msg) {
-                            var next = next_callback();
-                            var decrypted_msg = decrypt(msg,
-                                (CHANNELS[next[1]])?CHANNELS[next[1]]['cipher_key']:null);
-                            next[0] && next[0]( decrypted_msg, http_data, messages, next[2] || next[1], latency, next[1]);
-                        });
-
-                        timeout( _connect, windowing );
-                    }
+                    success : (V2)?subscribeSuccessHandlerV2:subscribeSuccessHandlerV1
                 });
             }
 
