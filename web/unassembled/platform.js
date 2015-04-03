@@ -14,6 +14,7 @@ var SWF             = 'https://pubnub.a.ssl.fastly.net/pubnub.swf'
 ,   ASYNC           = 'async'
 ,   UA              = navigator.userAgent
 ,   PNSDK           = 'PubNub-JS-' + PLATFORM + '/' + VERSION
+,   SECOND          = 1000
 ,   XORIGN          = UA.indexOf('MSIE 6') == -1;
 
 /**
@@ -229,12 +230,12 @@ var events = {
  */
 function xdr( setup ) {
     if (XORIGN || FDomainRequest()) return ajax(setup);
-
+    console.log('JSONP');
     var script    = create('script')
     ,   callback  = setup.callback
     ,   id        = unique()
     ,   finished  = 0
-    ,   xhrtme    = setup.timeout || DEF_TIMEOUT
+    ,   xhrtme    = setup.timeout || NON_SUBSCRIBE_TIMEOUT
     ,   timer     = timeout( function(){done(1, {"message" : "timeout"})}, xhrtme )
     ,   fail      = setup.fail    || function(){}
     ,   data      = setup.data    || {}
@@ -282,28 +283,48 @@ function xdr( setup ) {
  *  });
  */
 function ajax( setup ) {
+    //console.log('ajax');
     var xhr, response
+    ,   complete = 0
+    ,   loaded   = 0
+    ,   url
+    ,   xhrtme   = setup.timeout || NON_SUBSCRIBE_TIMEOUT
+    ,   fail     = setup.fail    || function(){}
+    ,   data     = setup.data    || {}
+    ,   success  = setup.success || function(){}
+    ,   mode     = setup['mode'] || 'GET'
+    ,   payload
+    ,   body = ''
+    ,   http_data = {'request' : {}, 'response' : {}}
+    ,   timer    = timeout( function(){console.log('TIMEOUT after ' + xhrtme + ' for ' + url);done(1, {"message" : "timeout"}, http_data)}, xhrtme )
+    ,   add_request_data = function(r) {
+            r['method'] = mode;
+            r['url'] = url;
+            if (payload && payload.length) r['data'] = payload;
+            return r;
+        }
     ,   finished = function() {
+            //console.log('finished');
             if (loaded) return;
             loaded = 1;
 
             clearTimeout(timer);
 
-            try       { response = JSON['parse'](xhr.responseText); }
-            catch (r) { return done(1); }
+            try       {
+                response = JSON['parse'](xhr.responseText);
+            }
+            catch (r) {
+                if (xhr) http_data['response']['body'] = xhr.responseText;
+                return done(1, null, http_data)
+            }
 
             complete = 1;
-            success(response);
+            http_data['response']['body'] = xhr.responseText;
+            success(response, http_data);
         }
-    ,   complete = 0
-    ,   loaded   = 0
-    ,   xhrtme   = setup.timeout || DEF_TIMEOUT
-    ,   timer    = timeout( function(){done(1, {"message" : "timeout"})}, xhrtme )
-    ,   fail     = setup.fail    || function(){}
-    ,   data     = setup.data    || {}
-    ,   success  = setup.success || function(){}
     ,   async    = !(setup.blocking)
-    ,   done     = function(failed,response) {
+    ,   done     = function(failed, response, http_data) {
+            //console.log('done ' + failed + ' , ' + complete);
             if (complete) return;
             complete = 1;
 
@@ -315,7 +336,7 @@ function ajax( setup ) {
                 xhr = null;
             }
 
-            failed && fail(response);
+            failed && fail(response, http_data);
         };
 
     // Send
@@ -326,35 +347,45 @@ function ajax( setup ) {
               new XMLHttpRequest();
 
         xhr.onerror = xhr.onabort   = function(){ done(
-            1, xhr.responseText || { "error" : "Network Connection Error"}
-        ) };
+            1, xhr.responseText || { "error" : "Network Connection Error"}, http_data
+        )};
         xhr.onload  = xhr.onloadend = finished;
         xhr.onreadystatechange = function() {
+            
             if (xhr && xhr.readyState == 4) {
+                http_data['response']['headers'] = xhr.headers;
+                http_data['response']['status'] = xhr.status;
+                http_data['response']['body'] = xhr.responseText;
+                //console.log(xhr.status);
                 switch(xhr.status) {
                     case 401:
                     case 402:
                     case 403:
                         try {
                             response = JSON['parse'](xhr.responseText);
-                            done(1,response);
+                            done(1,response, http_data);
                         }
-                        catch (r) { return done(1, xhr.responseText); }
-                        break;
+                        catch (r) { 
+                            return done(1, null, http_data); 
+                        }
+                        return;
                     default:
                         break;
                 }
             }
         }
 
-        var url = build_url(setup.url,data);
+        url = build_url(setup.url,data);
+        add_request_data(http_data['request']);
 
         xhr.open( 'GET', url, async );
         if (async) xhr.timeout = xhrtme;
+        console.log('GET ' + url + ', timeout : ' + xhr.timeout);
         xhr.send();
     }
     catch(eee) {
-        done(0);
+        console.log(eee);
+        done(0, null, http_data);
         XORIGN = 0;
         return xdr(setup);
     }
@@ -384,7 +415,7 @@ var PDIV          = $('pubnub') || 0
     else                 XORIGN = UA.indexOf('MSIE 6') == -1;
 
     var SUBSCRIBE_KEY = setup['subscribe_key'] || ''
-    ,   KEEPALIVE     = (+setup['keepalive']   || DEF_KEEPALIVE)   * SECOND
+    ,   KEEPALIVE     = (+setup['keepalive']   || DEF_KEEPALIVE)
     ,   UUID          = setup['uuid'] || db['get'](SUBSCRIBE_KEY+'uuid')||'';
 
     var leave_on_unload = setup['leave_on_unload'] || 0;

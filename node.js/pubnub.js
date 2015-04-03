@@ -5,7 +5,7 @@ var NOW                     = 1
 ,   PRESENCE_SUFFIX         = '-pnpres'
 ,   DEF_WINDOWING           = 10     // MILLISECONDS.
 ,   SUBSCRIBE_TIMEOUT       = 310000    // MILLISECONDS.
-,   NON_SUBSCRIBE_TIMEOUT   = 5000      // MILLISECONDS
+,   NON_SUBSCRIBE_TIMEOUT   = 20000      // MILLISECONDS
 ,   DEF_KEEPALIVE           = 60000     // MILLISECONDS (FOR TIMESYNC).
 ,   URLBIT                  = '/'
 ,   PARAMSBIT               = '&'
@@ -67,7 +67,7 @@ function rnow()   { return+new Date }
  * ==========
  * var next_origin = nextorigin();
  */
-var nextorigin = (function() {
+var nextorigin_cache_busting = (function() {
     var max = 20
     ,   ori = Math.floor(Math.random() * max);
     return function( origin, failover ) {
@@ -340,8 +340,8 @@ function PN_API(setup) {
     ,   hmac_SHA256   = setup['hmac_SHA256']
     ,   SSL           = setup['ssl']            ? 's' : ''
     ,   ORIGIN        = 'http'+SSL+'://'+(setup['origin']||'pubsub.pubnub.com')
-    ,   STD_ORIGIN    = nextorigin(ORIGIN)
-    ,   SUB_ORIGIN    = nextorigin(ORIGIN)
+    ,   ORIGINS       = setup['origins'] || [ORIGIN.split('://')[1]]
+    ,   CACHE_BUSTING = false
     ,   CONNECT       = function(){}
     ,   PUB_QUEUE     = []
     ,   CLOAK         = true
@@ -362,6 +362,14 @@ function PN_API(setup) {
     )
     ,   PRESENCE_HB_INTERVAL = setup['heartbeat_interval'] || PRESENCE_HB - 3
     ,   PRESENCE_HB_RUNNING  = false
+    ,   ORIGIN_HB_TIMEOUT     = null
+    ,   ORIGIN_HB_INTERVAL    = setup['origin_heartbeat_interval'] || 60000
+    ,   ORIGIN_HB_MAX_RETRIES = setup['origin_heartbeat_max_retries'] || 2
+    ,   ORIGIN_HB_INTERVAL_AFTER_FAILURE = setup['origin_heartbeat_interval_after_failure'] || 10000
+    ,   ORIGIN_HB_RUNNING     = false
+    ,   OPTIMAL_ORIGIN_CHECK_HB_RUNNING = false
+    ,   OPTIMAL_ORIGIN_CHECK_HB_TIMEOUT = null
+    ,   OPTIMAL_ORIGIN_CHECK_HB_INTERVAL = setup['optimal_origin_check_heartbeat_interval'] || 15000
     ,   NO_WAIT_FOR_PENDING  = setup['no_wait_for_pending']
     ,   COMPATIBLE_35 = setup['compatible_3.5']  || false
     ,   xdr           = setup['xdr']
@@ -373,6 +381,8 @@ function PN_API(setup) {
     ,   CIPHER_KEY    = setup['cipher_key']
     ,   result_cb     = setup['result'] || function(){}
     ,   status_cb     = setup['status'] || function(){}
+    ,   origin_hb_callback       = setup['origin_heartbeat_callback']
+    ,   origin_hb_error_callback = setup['origin_heartbeat_error_callback'] 
     ,   UUID          = setup['uuid'] || ( !setup['unique_uuid'] && db && db['get'](SUBSCRIBE_KEY+'uuid') || '')
     ,   _poll_timer
     ,   _poll_timer2;
@@ -382,6 +392,28 @@ function PN_API(setup) {
             'encrypt' : function(a,key){ return a},
             'decrypt' : function(b,key){return b}
         };
+
+    var cur = -1;
+    var retry_no = 1;
+
+    var nextorigin_ha = function(origins , current) {
+            if (!origins || !origins[0]) return nextorigin_cache_busting(origins);
+            var len = origins.length;
+            return 'http'+SSL+'://' + ( origins[current % origins.length]  || origins[0] || 'pubsub.pubnub.com');
+        };
+
+    var nextorigin = function(domain,failover) {
+        
+        if (!ORIGINS) return ORIGIN;
+
+        if (CACHE_BUSTING)
+            return nextorigin_cache_busting(domain, failover);
+        else
+            return nextorigin_ha(ORIGINS , failover);
+    };
+
+    var STD_ORIGIN    = nextorigin(ORIGINS || ORIGIN, ++cur)
+    ,   SUB_ORIGIN    = nextorigin(ORIGINS || ORIGIN, cur);
 
     function _get_url_params(data) {
         if (!data) data = {};
@@ -477,6 +509,99 @@ function PN_API(setup) {
 
     function start_presence_heartbeat() {
         !PRESENCE_HB_RUNNING && _presence_heartbeat();
+    }
+
+    function _reset(i,message) {
+        var old_origin = SUB_ORIGIN;
+        var counter = (typeof i !== 'undefined')?i:++cur;
+        cur = counter;
+        STD_ORIGIN = nextorigin(ORIGINS || ORIGIN, counter);
+        SUB_ORIGIN = nextorigin(ORIGINS || ORIGIN, counter);
+        origin_hb_error_callback && origin_hb_error_callback({ 'message' : 'switching origin', "old_origin" : old_origin, "new_origin" : SUB_ORIGIN});
+        _reset_offline( 1, { "message" : message || "Heartbeat Failed. Changing Origin", "old_origin" : old_origin,  "new_origin" : SUB_ORIGIN});
+
+        each_channel(function(channel){
+            // Disconnect
+            if (channel.connected && !channel.disconnected) {
+                channel.disconnected = 1;
+                channel.disconnect(channel.name);
+            }
+        });
+        retry_no = 1;
+        CONNECT();
+    }
+
+    function _send_optimal_check_heartbeat(i) {
+        SELF['origin_heartbeat']({
+            'origin'   : ORIGINS[i],
+            'callback' : function(r) {
+                if (i < cur % ORIGINS.length) _reset(i, "Optimal Check success for " + ORIGINS[i]);
+            }
+        });
+    }
+
+    function _optimal_origin_check_heartbeat(reset) {
+        clearTimeout(OPTIMAL_ORIGIN_CHECK_HB_TIMEOUT);
+
+        if (!OPTIMAL_ORIGIN_CHECK_HB_INTERVAL || !generate_channel_list(CHANNELS).length){
+            ORIGIN_HB_RUNNING = false;
+            return;
+        }
+
+        OPTIMAL_ORIGIN_CHECK_HB_RUNNING = true;
+
+        for (var i = 0 ; i < ( cur % ORIGINS.length ) ; i++) {
+            _send_optimal_check_heartbeat(i);
+        }
+        OPTIMAL_ORIGIN_CHECK_HB_TIMEOUT = timeout( _optimal_origin_check_heartbeat, (OPTIMAL_ORIGIN_CHECK_HB_INTERVAL) );
+    }
+
+    function _origin_heartbeat(reset) {
+
+        clearTimeout(ORIGIN_HB_TIMEOUT);
+
+        if (!ORIGIN_HB_INTERVAL || !generate_channel_list(CHANNELS).length){
+            ORIGIN_HB_RUNNING = false;
+            return;
+        }
+
+        ORIGIN_HB_RUNNING = true;
+        SELF['origin_heartbeat']({
+            'callback' : function(r) {
+                origin_hb_callback && origin_hb_callback({'timetoken' : r, 'origin' : SUB_ORIGIN, 'heartbeat_retry_number' : retry_no});
+                retry_no = 1;
+                ORIGIN_HB_TIMEOUT = timeout( _origin_heartbeat, (ORIGIN_HB_INTERVAL) );
+            },
+            'error' : function(e) {
+                origin_hb_error_callback && 
+                origin_hb_error_callback({"origin" : SUB_ORIGIN, 'heartbeat_retry_number' : retry_no});
+
+                !origin_hb_error_callback && 
+                error && 
+                error({"origin" : SUB_ORIGIN, 'heartbeat_retry_number' : retry_no});
+
+                if (reset || ORIGIN_HB_MAX_RETRIES === 1) {
+                    _reset();
+                    retry_no = 1;
+                    ORIGIN_HB_TIMEOUT = timeout( _origin_heartbeat, ORIGIN_HB_INTERVAL  );
+                } else {
+                    retry_no++;
+                    if (retry_no < ORIGIN_HB_MAX_RETRIES) {
+                        ORIGIN_HB_TIMEOUT = timeout( _origin_heartbeat, ORIGIN_HB_INTERVAL_AFTER_FAILURE  );
+                    } else {
+                        ORIGIN_HB_TIMEOUT = timeout(function() { _origin_heartbeat(1) },ORIGIN_HB_INTERVAL_AFTER_FAILURE  );
+                    }
+                }
+            }
+        });
+    }
+
+    function start_origin_heartbeat() {
+        !ORIGIN_HB_RUNNING && _origin_heartbeat();
+    }
+
+    function start_optimal_origin_check_heartbeat() {
+        !OPTIMAL_ORIGIN_CHECK_HB_RUNNING && _optimal_origin_check_heartbeat();
     }
 
     function publish(next) {
@@ -614,9 +739,13 @@ function PN_API(setup) {
     }
 
     function _invoke_callback_v4(response, http_data, op_params, callback, err) {
-        //console.log('V4 callback');
+        
         var v4_cb_data = objectShallowCopy(http_data, op_params);
-        console.log(JSON.stringify(v4_cb_data, null, 2));
+        if (!v4_cb_data) {
+            console.log(JSON.stringify(http_data));
+            console.log(JSON.stringify(op_params));
+        }
+        //console.log(JSON.stringify(v4_cb_data, null, 2));
         v4_cb_data['data'] = get_v4_cb_data(response);
         _invoke_callback(v4_cb_data, callback, err);
     }
@@ -663,10 +792,20 @@ function PN_API(setup) {
 
     // Announce Leave Event
     var SELF = {
+        'add_origin' : function(origin) {
+            ORIGINS.push(origin);
+        },
+        'remove_origin' : function(origin) {
+            for (var a in ORIGINS) {
+                if (ORIGINS[a] === origin) {
+                    ORIGINS[a] = false;
+                }
+            }
+        },
         'LEAVE' : function( channel, blocking, auth_key, callback, error ) {
 
             var data   = { 'uuid' : UUID, 'auth' : auth_key || AUTH_KEY }
-            ,   origin = nextorigin(ORIGIN)
+            ,   origin = nextorigin(ORIGINS || ORIGIN)
             ,   callback = callback || function(){}
             ,   err      = error    || function(){}
             ,   jsonp  = jsonp_cb();
@@ -776,6 +915,16 @@ function PN_API(setup) {
         },
         'get_version' : function() {
             return SDK_VER;
+        },
+        'get_origin_heartbeat_interval' : function() {
+            return ORIGIN_HB_INTERVAL;
+        },
+        'set_origin_heartbeat_interval' : function(origin_heartbeat_interval) {
+            ORIGIN_HB_INTERVAL = origin_heartbeat_interval;
+            _origin_heartbeat();
+        },
+        'get_sub_origin' : function() {
+            return SUB_ORIGIN;
         },
         'getGcmMessageObject' : function(obj) {
             return {
@@ -1225,6 +1374,8 @@ function PN_API(setup) {
                     publish(1);
                 },
                 success  : function(response, http_data) {
+                    //console.log(JSON.stringify(http_data));
+                    console.log(JSON.stringify(response));
                     !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
                     callback && _invoke_callback(response, callback, err);
                     publish(1);
@@ -1350,14 +1501,25 @@ function PN_API(setup) {
                 }
               
             };
+            var callback;
 
-            var callback = args['callback'] || function (message, http_data, message_envelope, channel, latency, real_channel, expanded) {
-                if (message_envelope) http_data['message_envelope'] = message_envelope;
-                if (channel)        http_data['channel']        = channel;
-                if (latency)        http_data['latency']        = latency;
-                if (real_channel)   http_data['real_channel']   = real_channel;
-                if (expanded)       http_data['expanded']       = expanded;
-                _invoke_callback_v4(message, http_data, op_params, result, status);
+            if (args['callback']) {
+                var cb = args['callback'];
+                callback = 
+                    function (message, http_data, message_envelope, channel, latency, real_channel, expanded) {
+                        cb && cb(message, message_envelope, channel, latency, real_channel, expanded);
+                    };
+
+            } else {
+                callback = 
+                    function (message, http_data, message_envelope, channel, latency, real_channel, expanded) {
+                        if (message_envelope) http_data['message_envelope'] = message_envelope;
+                        if (channel)        http_data['channel']        = channel;
+                        if (latency)        http_data['latency']        = latency;
+                        if (real_channel)   http_data['real_channel']   = real_channel;
+                        if (expanded)       http_data['expanded']       = expanded;
+                        _invoke_callback_v4(message, http_data, op_params, result, status);
+                    };
             }
 
             var callback2 = args['callback'] || function (message, http_data, message_envelope, channel, real_channel, expanded) {
@@ -1517,7 +1679,7 @@ function PN_API(setup) {
                 } );
             }
 
-
+            
             // Test Network Connection
             function _test_connection(success) {
                 if (success) {
@@ -1526,8 +1688,8 @@ function PN_API(setup) {
                 }
                 else {
                     // New Origin on Failed Connection
-                    STD_ORIGIN = nextorigin( ORIGIN, 1 );
-                    SUB_ORIGIN = nextorigin( ORIGIN, 1 );
+                    //STD_ORIGIN = nextorigin( ORIGINS || ORIGIN, 1 );
+                    //SUB_ORIGIN = nextorigin( ORIGINS || ORIGIN, 1 );
 
                     // Re-test Connection
                     timeout( function() {
@@ -1538,6 +1700,7 @@ function PN_API(setup) {
                 _update_connection_states_and_invoke_callbacks((success)?1:0);
 
             }
+            
 
             function _update_connection_states_and_invoke_callbacks(connected, http_data){
 
@@ -1611,7 +1774,7 @@ function PN_API(setup) {
 
 
                 function subscribeSuccessHandlerV1(messages, http_data) {
-                    //console.log(JSON.stringify(http_data));
+                    if (!http_data) console.log('V1 HANDLER ' + JSON.stringify(http_data));
                     // Check for Errors
                     if (!messages || (
                         typeof messages == 'object' &&
@@ -1722,7 +1885,7 @@ function PN_API(setup) {
                         response['error']
                     )) {
                         err(response['error'], http_data);
-                        return timeout( CONNECT, SECOND );
+                        return timeout( CONNECT, 1000 );
                     }
 
                     // User Idle Callback
@@ -1788,6 +1951,9 @@ function PN_API(setup) {
                 }
 
                 start_presence_heartbeat();
+                start_origin_heartbeat();
+                start_optimal_origin_check_heartbeat();
+
                 SUB_RECEIVER = xdr({
                     timeout  : sub_timeout,
                     callback : jsonp,
@@ -2321,12 +2487,38 @@ function PN_API(setup) {
                 fail     : function(response, http_data) {
                     !err && _invoke_callback_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
-                },
+                }
             });
         },
         'stop_timers': function () {
             clearTimeout(_poll_timer);
             clearTimeout(_poll_timer2);
+        },
+        'origin_heartbeat' : function(args) {
+            var callback         = args['callback'] || callback
+            ,   err              = args['error']
+            ,   result           = args['result']   || result_cb
+            ,   status           = args['status']   || status_cb
+            var jsonp    = jsonp_cb();
+            var origin   = (args['origin'])? 'http'+SSL+'://' + args['origin']:SUB_ORIGIN;
+            var data     = { 'uuid' : UUID, 'auth' : AUTH_KEY };
+            //console.log('ORIGIN HB');
+            xdr({
+                callback : jsonp,
+                data     : data,
+                timeout  : NON_SUBSCRIBE_TIMEOUT,
+                url      : [
+                    origin, 'time', '0'
+                ],
+                success  : function(response, http_data) {
+                    !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
+                    callback && _invoke_callback(response, callback, err);
+                },
+                fail     : function(response, http_data) {
+                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    err && _invoke_error(response, err);
+                }
+            });
         },
 
         // Expose PUBNUB Functions

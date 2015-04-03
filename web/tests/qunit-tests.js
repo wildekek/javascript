@@ -73,14 +73,14 @@ function pubnub_test(test_name, test_func, config) {
 
 function pubnub_test_all(test_name, test_func) {
     pubnub_test(test_name, test_func);
-    pubnub_test(test_name, test_func, {jsonp : true});
+    //pubnub_test(test_name, test_func, {jsonp : true});
     pubnub_test(test_name, test_func, {ssl : true});
     pubnub_test(test_name, test_func, {
         presence : function(r){
             if (!r.action) { ok(false, "presence called"); start()};
         }
     });
-    pubnub_test(test_name, test_func, {jsonp : true, ssl : true});
+    //pubnub_test(test_name, test_func, {jsonp : true, ssl : true});
 }
 
 
@@ -158,6 +158,7 @@ pubnub_test_all("instantiation test 1", function(config) {
             });
         },
         callback : function(response) {
+            console.log(JSON.stringify(response));
             deepEqual(response, message_string);
             pubnub.unsubscribe({channel : ch});
             start();
@@ -1278,6 +1279,7 @@ pubnub_test_all('Encryption tests', function(config) {
         },
 
         callback: function (message, envelope, aes_channel) {
+            console.log(JSON.stringify(envelope));
             ok(message, 'AES Subscribe Message');
             ok(message.test === "test", 'AES Subscribe Message Data');
             ok(envelope[1], 'AES TimeToken Returned: ' + envelope[1]);
