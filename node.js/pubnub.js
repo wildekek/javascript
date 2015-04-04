@@ -74,12 +74,11 @@ var nextorigin_cache_busting = (function() {
         return origin.indexOf('pubsub.') > 0
             && origin.replace(
              'pubsub', 'ps' + (
-                failover ? uuid().split('-')[0] :
+                failover ? get_uuid().split('-')[0] :
                 (++ori < max? ori : ori=1)
             ) ) || origin;
     }
 })();
-
 
 /**
  * Build Url
@@ -161,7 +160,7 @@ function timeout( fun, wait ) {
  * ====
  * var my_uuid = uuid();
  */
-function uuid(callback) {
+function get_uuid(callback) {
     var u = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
     function(c) {
         var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
@@ -340,7 +339,7 @@ function PN_API(setup) {
     ,   hmac_SHA256   = setup['hmac_SHA256']
     ,   SSL           = setup['ssl']            ? 's' : ''
     ,   ORIGIN        = 'http'+SSL+'://'+(setup['origin']||'pubsub.pubnub.com')
-    ,   ORIGINS       = setup['origins'] || [ORIGIN.split('://')[1]]
+    ,   ORIGINS       = setup['origins'] // || [ORIGIN.split('://')[1]]
     ,   CACHE_BUSTING = false
     ,   CONNECT       = function(){}
     ,   PUB_QUEUE     = []
@@ -403,13 +402,10 @@ function PN_API(setup) {
         };
 
     var nextorigin = function(domain,failover) {
-        
-        if (!ORIGINS) return ORIGIN;
-
-        if (CACHE_BUSTING)
-            return nextorigin_cache_busting(domain, failover);
-        else
+        if (ORIGINS)
             return nextorigin_ha(ORIGINS , failover);
+        else 
+            return nextorigin_cache_busting(domain, failover);
     };
 
     var STD_ORIGIN    = nextorigin(ORIGINS || ORIGIN, ++cur)
@@ -541,6 +537,9 @@ function PN_API(setup) {
     }
 
     function _optimal_origin_check_heartbeat(reset) {
+
+        if (!ORIGINS) return;
+
         clearTimeout(OPTIMAL_ORIGIN_CHECK_HB_TIMEOUT);
 
         if (!OPTIMAL_ORIGIN_CHECK_HB_INTERVAL || !generate_channel_list(CHANNELS).length){
@@ -741,13 +740,16 @@ function PN_API(setup) {
     function _invoke_callback_v4(response, http_data, op_params, callback, err) {
         
         var v4_cb_data = objectShallowCopy(http_data, op_params);
-        if (!v4_cb_data) {
-            console.log(JSON.stringify(http_data));
-            console.log(JSON.stringify(op_params));
-        }
-        //console.log(JSON.stringify(v4_cb_data, null, 2));
         v4_cb_data['data'] = get_v4_cb_data(response);
         _invoke_callback(v4_cb_data, callback, err);
+    }
+
+    function _invoke_error_v4(response, http_data, op_params, err) {
+        
+        var v4_cb_data = objectShallowCopy(http_data, op_params);
+        v4_cb_data['data'] = get_v4_cb_data(response);
+        v4_cb_data['category'] = 'error'; 
+        _invoke_callback(v4_cb_data, err);
     }
 
     function CR(args, callback, url1, data) {
@@ -781,7 +783,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
 
                 },
@@ -805,7 +807,7 @@ function PN_API(setup) {
         'LEAVE' : function( channel, blocking, auth_key, callback, error ) {
 
             var data   = { 'uuid' : UUID, 'auth' : auth_key || AUTH_KEY }
-            ,   origin = nextorigin(ORIGINS || ORIGIN)
+            ,   origin = STD_ORIGIN
             ,   callback = callback || function(){}
             ,   err      = error    || function(){}
             ,   jsonp  = jsonp_cb();
@@ -843,7 +845,7 @@ function PN_API(setup) {
         'LEAVE_GROUP' : function( channel_group, blocking, auth_key, callback, error ) {
 
             var data   = { 'uuid' : UUID, 'auth' : auth_key || AUTH_KEY }
-            ,   origin = nextorigin(ORIGIN)
+            ,   origin = STD_ORIGIN
             ,   callback = callback || function(){}
             ,   err      = error    || function(){}
             ,   jsonp  = jsonp_cb();
@@ -1196,7 +1198,7 @@ function PN_API(setup) {
                     callback && _invoke_callback([decrypted_messages, response[1], response[2]], callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 },
                 url      : [
@@ -1369,13 +1371,11 @@ function PN_API(setup) {
                 url      : url,
                 data     : _get_url_params(params),
                 fail     : function(response, http_data){
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                     publish(1);
                 },
                 success  : function(response, http_data) {
-                    //console.log(JSON.stringify(http_data));
-                    console.log(JSON.stringify(response));
                     !callback && _invoke_callback_v4(response, http_data, op_params, result, status);
                     callback && _invoke_callback(response, callback, err);
                     publish(1);
@@ -1493,8 +1493,9 @@ function PN_API(setup) {
                     status_event.channel = channel;
                     status_event.category = 'error';
 
-                    status && _invoke_callback_v4(r, http_data, op_params, status);
-                } else {
+                    status && _invoke_callback_v4(r, status_event, op_params, status);
+                }
+                if (args['error']){
                     var errcb = args['error'];
                     errcb && _invoke_error(r, errcb);
 
@@ -1532,7 +1533,7 @@ function PN_API(setup) {
                 status_event.channel = channel;
                 status_event.category = 'connect';
 
-                status && status(http_data);
+                status && status(status_event);
             }
 
             var disconnect = args['disconnect'] || function(channel, http_data) {
@@ -1688,8 +1689,8 @@ function PN_API(setup) {
                 }
                 else {
                     // New Origin on Failed Connection
-                    //STD_ORIGIN = nextorigin( ORIGINS || ORIGIN, 1 );
-                    //SUB_ORIGIN = nextorigin( ORIGINS || ORIGIN, 1 );
+                    //STD_ORIGIN = nextorigin( ORIGINS || ORIGIN, ++cur );
+                    //SUB_ORIGIN = nextorigin( ORIGINS || ORIGIN, cur );
 
                     // Re-test Connection
                     timeout( function() {
@@ -1774,7 +1775,6 @@ function PN_API(setup) {
 
 
                 function subscribeSuccessHandlerV1(messages, http_data) {
-                    if (!http_data) console.log('V1 HANDLER ' + JSON.stringify(http_data));
                     // Check for Errors
                     if (!messages || (
                         typeof messages == 'object' &&
@@ -2044,7 +2044,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 },
                 url      : url
@@ -2086,7 +2086,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 },
                 url      : [
@@ -2168,7 +2168,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 },
                 url      : url
@@ -2256,7 +2256,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 },
                 url      : [
@@ -2326,7 +2326,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 },
                 url      : url
@@ -2400,7 +2400,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 },
                 url      : [
@@ -2485,7 +2485,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 }
             });
@@ -2502,7 +2502,14 @@ function PN_API(setup) {
             var jsonp    = jsonp_cb();
             var origin   = (args['origin'])? 'http'+SSL+'://' + args['origin']:SUB_ORIGIN;
             var data     = { 'uuid' : UUID, 'auth' : AUTH_KEY };
-            //console.log('ORIGIN HB');
+
+            var op_params = {
+                'operation'         : 'origin_heartbeat',
+                'connection'        : 'non-sub',
+                'wasAutoRetried'    : false,
+                'config'            : getConfig()
+            };
+
             xdr({
                 callback : jsonp,
                 data     : data,
@@ -2515,7 +2522,7 @@ function PN_API(setup) {
                     callback && _invoke_callback(response, callback, err);
                 },
                 fail     : function(response, http_data) {
-                    !err && _invoke_callback_v4(response, http_data, op_params, status);
+                    !err && _invoke_error_v4(response, http_data, op_params, status);
                     err && _invoke_error(response, err);
                 }
             });
@@ -2525,7 +2532,7 @@ function PN_API(setup) {
         'xdr'           : xdr,
         'ready'         : ready,
         'db'            : db,
-        'uuid'          : uuid,
+        'uuid'          : get_uuid,
         'map'           : map,
         'each'          : each,
         'each-channel'  : each_channel,
@@ -2703,7 +2710,7 @@ function xdr( setup ) {
 
             clearTimeout(timer);
             //http_data['response']['status']   = 200;
-            console.log(body);
+
             try {
                 response = JSON['parse'](body);
             }
@@ -2746,7 +2753,7 @@ function xdr( setup ) {
         payload = decodeURIComponent(setup.url.pop());
 
     url = build_url( setup.url, data );
-    console.log(mode + ' : ' + url);
+    
     add_request_data(http_data['request']);
 
 

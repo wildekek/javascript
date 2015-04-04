@@ -23,10 +23,60 @@ var message_jsono = {"message": "Hi Hi from Javascript"};
 var message_jsona = ["message" , "Hi Hi from javascript"];
 
 
+
+namespaces = []
+groups     = []
+
+    
+QUnit.begin(function(){
+    pubnub_pam.revoke({})
+    pubnub.channel_group_list_groups({
+        callback : function(r) {
+            var groups = r.groups;
+            for (var i in groups) {
+                var group = groups[i];
+                pubnub.channel_group_remove_group({
+                    channel_group : group
+                })
+            }
+        }
+    });
+    pubnub.channel_group_list_namespaces({
+        callback : function(r) {
+            var namespaces = r.namespaces;
+            for (var i in namespaces) {
+                var namespace = namespaces[i];
+                pubnub.channel_group_remove_namespace({
+                    namespace : namespace
+                })
+            }
+        }
+    });
+
+})
+
+QUnit.done(function(){
+    for (var i in namespaces) {
+        var namespace = namespaces[i];
+        pubnub.channel_group_remove_namespace({
+            namespace : namespace
+        })
+    }
+    for (var i in groups) {
+        var group = groups[i];
+        pubnub.channel_group_remove_group({
+            channel_group : group
+        })
+    }
+})
+
 function get_random(){
     return Math.floor((Math.random() * 100000000000) + 1);
 }
 function _pubnub_init(args, config, pn){
+
+    if (args) args.origin = 'ps' + get_random() + '.pubnub.com';
+
     if (config) {
         args.ssl = config.ssl;
         args.jsonp = config.jsonp;
@@ -38,6 +88,9 @@ function _pubnub_init(args, config, pn){
 }
 
 function _pubnub(args, config, pn) {
+
+    if (args) args.origin = 'ps' + get_random() + '.pubnub.com';
+    
     if (config) {
         args.ssl = config.ssl;
         args.jsonp = config.jsonp;
@@ -158,7 +211,6 @@ pubnub_test_all("instantiation test 1", function(config) {
             });
         },
         callback : function(response) {
-            console.log(JSON.stringify(response));
             deepEqual(response, message_string);
             pubnub.unsubscribe({channel : ch});
             start();
@@ -392,6 +444,7 @@ pubnub_test_all("publish() should publish strings when using channel groups with
     expect(2);
     stop(2);
 
+    groups.push(channel_group);
     pubnub.channel_group_add_channel({
         'channel_group' : channel_group,
         'channel'       : ch,
@@ -1251,18 +1304,18 @@ pubnub_test_all('Encryption tests', function(config) {
     ok(pubnub_enc.raw_decrypt(test_cipher_unicode_1) == test_plain_unicode_1, "AES Unicode Decryption Test 1");
 
     aes_channel = channel + "aes-channel" + Math.random();
-    _pubnub_subscribe(pubnub_enc, {
+    _pubnub_subscribe(pubnub, {
         channel: aes_channel,
         connect: function() {
             setTimeout(function() {
-                pubnub_enc.publish({
+                pubnub.publish({
                     channel: aes_channel,
                     message: { test: "test" },
                     callback: function (response) {
                         ok(response[0], 'AES Successful Publish ' + response[0]);
                         ok(response[1], 'AES Success With Demo ' + response[1]);
                         setTimeout(function() {
-                            pubnub_enc.history({
+                            pubnub.history({
                                 limit: 1,
                                 reverse: false,
                                 channel: aes_channel,
@@ -1279,13 +1332,13 @@ pubnub_test_all('Encryption tests', function(config) {
         },
 
         callback: function (message, envelope, aes_channel) {
-            console.log(JSON.stringify(envelope));
             ok(message, 'AES Subscribe Message');
             ok(message.test === "test", 'AES Subscribe Message Data');
             ok(envelope[1], 'AES TimeToken Returned: ' + envelope[1]);
         }
     }, config);
 })
+
 var grant_channel = channel + '-grant';
 var auth_key = "abcd";
 var sub_key = 'ds-pam';

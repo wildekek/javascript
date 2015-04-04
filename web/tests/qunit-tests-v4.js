@@ -5,17 +5,63 @@ var test_secret_key = 'ds';
 var pubnub = PUBNUB.init({
     publish_key   : test_publish_key,
     subscribe_key : test_subscribe_key,
-    build_u       : true //,
-    //origin        : 'balancer1.ap-northeast-1.pubnub.com'
+    build_u       : true
 });
 
 var pubnub_enc = PUBNUB({
     publish_key: test_publish_key,
     subscribe_key: test_subscribe_key,
     cipher_key: "enigma",
-    build_u   : true //,
-    //origin        : 'balancer1.ap-northeast-1.pubnub.com'
+    build_u   : true
 });
+
+
+namespaces = []
+groups     = []
+
+    
+QUnit.begin(function(){
+    pubnub_pam.revoke({})
+    pubnub.channel_group_list_groups({
+        callback : function(r) {
+            var groups = r.groups;
+            for (var i in groups) {
+                var group = groups[i];
+                pubnub.channel_group_remove_group({
+                    channel_group : group
+                })
+            }
+        }
+    });
+    pubnub.channel_group_list_namespaces({
+        callback : function(r) {
+            var namespaces = r.namespaces;
+            for (var i in namespaces) {
+                var namespace = namespaces[i];
+                pubnub.channel_group_remove_namespace({
+                    namespace : namespace
+                })
+            }
+        }
+    });
+
+})
+
+QUnit.done(function(){
+    for (var i in namespaces) {
+        var namespace = namespaces[i];
+        pubnub.channel_group_remove_namespace({
+            namespace : namespace
+        })
+    }
+    for (var i in groups) {
+        var group = groups[i];
+        pubnub.channel_group_remove_group({
+            channel_group : group
+        })
+    }
+})
+
 
 var channel = 'javascript-test-channel-' + Math.floor((Math.random() * 10) + 1);
 var count = 0;
@@ -26,10 +72,11 @@ var message_jsona = ["message" , "Hi Hi from javascript"];
 
 
 function get_random(){
-    return 'devendrav4' + Math.floor((Math.random() * 100000000000) + 1);
+    return Math.floor((Math.random() * 100000000000) + 1);
 }
 function _pubnub_init(args, config, pn){
-    //args.origin = 'balancer1.ap-northeast-1.pubnub.com'
+    if (args) args.origin = 'ps' + get_random() + '.pubnub.com';
+
     if (config) {
         args.ssl = config.ssl;
         args.jsonp = config.jsonp;
@@ -41,6 +88,7 @@ function _pubnub_init(args, config, pn){
 }
 
 function _pubnub(args, config, pn) {
+    if (args) args.origin = 'ps' + get_random() + '.pubnub.com';
     if (config) {
         args.ssl = config.ssl;
         args.jsonp = config.jsonp;
@@ -154,7 +202,6 @@ pubnub_test_all("instantiation test 1", function(config) {
     var ch = channel + '-' + ++count;
     _pubnub_subscribe(pubnub, { channel : ch,
         status : function(ev)  {
-            //console.log(ev);
             if (ev.category === 'connect') {
                 pubnub.publish({channel: ch, message: message_string,
                     result : function(response) {
@@ -409,7 +456,7 @@ pubnub_test_all("publish() should publish strings when using channel groups with
 
     expect(2);
     stop(2);
-
+    groups.push(channel_group);
     pubnub.channel_group_add_channel({
         'channel_group' : channel_group,
         'channel'       : ch,
@@ -1345,7 +1392,6 @@ pubnub_test_all('Encryption tests', function(config) {
         },
 
         result: function (response) {
-            console.log(JSON.stringify(response));
             ok(response.data, 'AES Subscribe Message');
             ok(response.data.test === "test", 'AES Subscribe Message Data');
             //ok(envelope[1], 'AES TimeToken Returned: ' + envelope[1]);
@@ -1357,7 +1403,7 @@ var grant_channel = channel + '-grant';
 var auth_key = "abcd";
 var sub_key = 'ds-pam';
 var pubnub_pam = PUBNUB.init({
-    origin            : 'pubsub.pubnub.com',
+    origin            : 'ps' + get_random() +'.pubnub.com',
     publish_key       : 'ds-pam',
     subscribe_key     : 'ds-pam',
     secret_key        : 'ds-pam',
@@ -1600,7 +1646,7 @@ test("#grant() should be able to revoke read, grant write access", function(done
                     result : function(response) {
                         //ok(response.status === 200, 'Grant Audit Response');
                         ok(response.data.auths.abcd.r === 0, 'Grant Audit Read should be 0');
-                        ok(response.data.auths.abcd.w === 1, 'Grant Audit Write shoudld be 1');
+                        ok(response.data.auths.abcd.w === 1, 'Grant Audit Write shoudd be 1');
                         pubnub_pam.history({
                             'channel'  : grant_channel_3,
                             'auth_key' : auth_key,
@@ -1884,25 +1930,25 @@ var uuid1 = uuid + '-1';
 var uuid2 = uuid + '-2';
 var uuid3 = uuid + '-3';
 var pubnub_pres = PUBNUB.init({
-    origin            : 'pubsub.pubnub.com',
+    origin            : 'ps' + get_random() +'.pubnub.com',
     publish_key       : test_publish_key,
     subscribe_key     : test_subscribe_key,
     uuid              : uuid
 });
 var pubnub_pres_1 = PUBNUB.init({
-    origin            : 'pubsub.pubnub.com',
+    origin            : 'ps' + get_random() +'.pubnub.com',
     publish_key       : test_publish_key,
     subscribe_key     : test_subscribe_key,
     uuid              : uuid1
 });
 var pubnub_pres_2 = PUBNUB.init({
-    origin            : 'pubsub.pubnub.com',
+    origin            : 'ps' + get_random() +'.pubnub.com',
     publish_key       : test_publish_key,
     subscribe_key     : test_subscribe_key,
     uuid              : uuid2
 });
 var pubnub_pres_3 = PUBNUB.init({
-    origin            : 'pubsub.pubnub.com',
+    origin            : 'ps' + get_random() +'.pubnub.com',
     publish_key       : test_publish_key,
     subscribe_key     : test_subscribe_key,
     uuid              : uuid3

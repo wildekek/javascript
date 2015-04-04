@@ -100,7 +100,7 @@ function xdr( setup ) {
 
             clearTimeout(timer);
             //http_data['response']['status']   = 200;
-            console.log(body);
+
             try {
                 response = JSON['parse'](body);
             }
@@ -143,7 +143,7 @@ function xdr( setup ) {
         payload = decodeURIComponent(setup.url.pop());
 
     url = build_url( setup.url, data );
-    console.log(mode + ' : ' + url);
+    
     add_request_data(http_data['request']);
 
 

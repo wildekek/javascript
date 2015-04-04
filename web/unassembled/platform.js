@@ -230,7 +230,6 @@ var events = {
  */
 function xdr( setup ) {
     if (XORIGN || FDomainRequest()) return ajax(setup);
-    console.log('JSONP');
     var script    = create('script')
     ,   callback  = setup.callback
     ,   id        = unique()
@@ -283,7 +282,6 @@ function xdr( setup ) {
  *  });
  */
 function ajax( setup ) {
-    //console.log('ajax');
     var xhr, response
     ,   complete = 0
     ,   loaded   = 0
@@ -296,7 +294,9 @@ function ajax( setup ) {
     ,   payload
     ,   body = ''
     ,   http_data = {'request' : {}, 'response' : {}}
-    ,   timer    = timeout( function(){console.log('TIMEOUT after ' + xhrtme + ' for ' + url);done(1, {"message" : "timeout"}, http_data)}, xhrtme )
+    ,   timer    = timeout( function(){
+            done(1, {"message" : "timeout"}, http_data || {'request' : {}, 'response' : {}})
+        }, xhrtme )
     ,   add_request_data = function(r) {
             r['method'] = mode;
             r['url'] = url;
@@ -304,7 +304,6 @@ function ajax( setup ) {
             return r;
         }
     ,   finished = function() {
-            //console.log('finished');
             if (loaded) return;
             loaded = 1;
 
@@ -324,7 +323,6 @@ function ajax( setup ) {
         }
     ,   async    = !(setup.blocking)
     ,   done     = function(failed, response, http_data) {
-            //console.log('done ' + failed + ' , ' + complete);
             if (complete) return;
             complete = 1;
 
@@ -336,7 +334,7 @@ function ajax( setup ) {
                 xhr = null;
             }
 
-            failed && fail(response, http_data);
+            failed && fail(response, http_data || {'request' : {}, 'response' : {}});
         };
 
     // Send
@@ -347,8 +345,7 @@ function ajax( setup ) {
               new XMLHttpRequest();
 
         xhr.onerror = xhr.onabort   = function(){ done(
-            1, xhr.responseText || { "error" : "Network Connection Error"}, http_data
-        )};
+            1, xhr.responseText || { "error" : "Network Connection Error"}, http_data)};
         xhr.onload  = xhr.onloadend = finished;
         xhr.onreadystatechange = function() {
             
@@ -356,7 +353,6 @@ function ajax( setup ) {
                 http_data['response']['headers'] = xhr.headers;
                 http_data['response']['status'] = xhr.status;
                 http_data['response']['body'] = xhr.responseText;
-                //console.log(xhr.status);
                 switch(xhr.status) {
                     case 401:
                     case 402:
@@ -380,11 +376,9 @@ function ajax( setup ) {
 
         xhr.open( 'GET', url, async );
         if (async) xhr.timeout = xhrtme;
-        console.log('GET ' + url + ', timeout : ' + xhr.timeout);
         xhr.send();
     }
     catch(eee) {
-        console.log(eee);
         done(0, null, http_data);
         XORIGN = 0;
         return xdr(setup);
