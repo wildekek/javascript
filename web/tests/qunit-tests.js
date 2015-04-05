@@ -126,14 +126,14 @@ function pubnub_test(test_name, test_func, config) {
 
 function pubnub_test_all(test_name, test_func) {
     pubnub_test(test_name, test_func);
-    //pubnub_test(test_name, test_func, {jsonp : true});
+    pubnub_test(test_name, test_func, {jsonp : true});
     pubnub_test(test_name, test_func, {ssl : true});
     pubnub_test(test_name, test_func, {
         presence : function(r){
             if (!r.action) { ok(false, "presence called"); start()};
         }
     });
-    //pubnub_test(test_name, test_func, {jsonp : true, ssl : true});
+    pubnub_test(test_name, test_func, {jsonp : true, ssl : true});
 }
 
 

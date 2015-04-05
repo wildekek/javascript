@@ -1839,8 +1839,8 @@ function PN_API(setup) {
                 }
                 else {
                     // New Origin on Failed Connection
-                    //STD_ORIGIN = nextorigin( ORIGINS || ORIGIN, ++cur );
-                    //SUB_ORIGIN = nextorigin( ORIGINS || ORIGIN, cur );
+                    STD_ORIGIN = nextorigin( ORIGINS || ORIGIN, ++cur );
+                    SUB_ORIGIN = nextorigin( ORIGINS || ORIGIN, cur );
 
                     // Re-test Connection
                     timeout( function() {
@@ -4148,16 +4148,28 @@ function xdr( setup ) {
     ,   timer     = timeout( function(){done(1, {"message" : "timeout"})}, xhrtme )
     ,   fail      = setup.fail    || function(){}
     ,   data      = setup.data    || {}
+    ,   http_data = {'request' : {}, 'response' : {}}
     ,   success   = setup.success || function(){}
     ,   append    = function() { head().appendChild(script) }
-    ,   done      = function( failed, response ) {
+    ,   mode     = setup['mode'] || 'GET'
+    ,   add_request_data = function(r) {
+        r['method'] = mode;
+        r['url'] = script.src;
+        return r;
+    }
+    ,   done      = function( failed, response, http_data) {
             if (finished) return;
             finished = 1;
 
             script.onerror = null;
             clearTimeout(timer);
 
-            (failed || !response) || success(response);
+            if (http_data && response) {
+                http_data['response']['data'] = response;
+                http_data['response']['status'] = response.status || 200;
+            }
+
+            (failed || !response) || success(response, http_data);
 
             timeout( function() {
                 failed && fail();
@@ -4168,12 +4180,12 @@ function xdr( setup ) {
         };
 
     window[callback] = function(response) {
-        done( 0, response );
+        done( 0, response, http_data);
     };
 
     if (!setup.blocking) script[ASYNC] = ASYNC;
 
-    script.onerror = function() { done(1) };
+    script.onerror = function() { done(1, null, http_data) };
     script.src     = build_url( setup.url, data );
 
     attr( script, 'id', id );
