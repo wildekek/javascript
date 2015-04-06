@@ -1688,8 +1688,8 @@ function PN_API(setup) {
                 }
                 else {
                     // New Origin on Failed Connection
-                    STD_ORIGIN = nextorigin( ORIGINS || ORIGIN, ++cur );
-                    SUB_ORIGIN = nextorigin( ORIGINS || ORIGIN, cur );
+                    //STD_ORIGIN = nextorigin( ORIGINS || ORIGIN, ++cur );
+                    //SUB_ORIGIN = nextorigin( ORIGINS || ORIGIN, cur );
 
                     // Re-test Connection
                     timeout( function() {
