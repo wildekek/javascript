@@ -462,7 +462,7 @@ function PN_API(setup) {
         }
 
         if (typeof heartbeat === 'number') {
-            if (heartbeat > PRESENCE_HB_THRESHOLD || heartbeat == 0)
+            if (heartbeat >= 0)
                 err = false;
             else
                 err = true;
