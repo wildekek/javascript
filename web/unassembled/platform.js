@@ -366,19 +366,17 @@ function ajax( setup ) {
                 http_data['response']['status'] = xhr.status;
                 http_data['response']['body'] = xhr.responseText;
                 switch(xhr.status) {
-                    case 401:
-                    case 402:
-                    case 403:
+                    case 200:
+                        break;
+                    default:
                         try {
                             response = JSON['parse'](xhr.responseText);
                             done(1,response, http_data);
                         }
                         catch (r) { 
-                            return done(1, null, http_data); 
+                            return done(1, {status : xhr.status, payload : null, message : xhr.responseText}, http_data); 
                         }
                         return;
-                    default:
-                        break;
                 }
             }
         }

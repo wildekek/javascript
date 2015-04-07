@@ -35,19 +35,33 @@ THE SOFTWARE.
 var NOW                 = 1
 ,   http                = require('http')
 ,   https               = require('https')
-,   keepAliveAgent      = new (keepAliveIsEmbedded() ? http.Agent : require('agentkeepalive'))({
-                            keepAlive: true,
-                            keepAliveMsecs: 300000,
-                            maxSockets: 5
-                          })
 ,   XHRTME              = 310000
 ,   DEF_TIMEOUT         = 10000
 ,   SECOND              = 1000
 ,   PNSDK               = 'PubNub-JS-' + PLATFORM + '/' +  VERSION
 ,   crypto              = require('crypto')
 ,   proxy               = null
-,   XORIGN              = 1;
+,   XORIGN              = 1
+,   keepAliveConfig     = {
+    keepAlive: true,
+    keepAliveMsecs: 300000,
+    maxSockets: 5
+}
+,   keepAliveAgent
+,   keepAliveAgentSSL;
 
+if (keepAliveIsEmbedded()) {
+    keepAliveAgent = new http.Agent(keepAliveConfig);
+    keepAliveAgentSSL = new https.Agent(keepAliveConfig);
+} else {
+    (function () {
+        var agent = require('agentkeepalive'),
+            agentSSL = agent.HttpsAgent;
+
+        keepAliveAgent = new agent(keepAliveConfig);
+        keepAliveAgentSSL = new agentSSL(keepAliveConfig);
+    })();
+}
 
 function get_hmac_SHA256(data, key) {
     return crypto.createHmac('sha256',
@@ -76,7 +90,6 @@ function xdr( setup ) {
     ,   response
     ,   success  = setup.success || function(){}
     ,   fail     = setup.fail    || function(){}
-    ,   origin   = setup.origin || 'pubsub.pubnub.com'
     ,   ssl      = setup.ssl
     ,   failed   = 0
     ,   complete = 0
@@ -136,8 +149,10 @@ function xdr( setup ) {
     data['pnsdk'] = PNSDK;
 
     var options = {};
+
     var headers = {};
     payload = '';
+
 
     if (mode == 'POST')
         payload = decodeURIComponent(setup.url.pop());
@@ -146,23 +161,29 @@ function xdr( setup ) {
     
     add_request_data(http_data['request']);
 
+    if (!ssl) ssl = (url.split('://')[0] == 'https');
 
-    if (!ssl) ssl = (url.split('://')[0] == 'https')?true:false;
 
     url = '/' + url.split('/').slice(3).join('/');
 
-    var origin       = setup.url[0].split("//")[1]
+    var origin       = setup.url[0].split("//")[1];
 
     options.hostname = proxy ? proxy.hostname : setup.url[0].split("//")[1];
     options.port     = proxy ? proxy.port : ssl ? 443 : 80;
-    options.path     = proxy ? "http://" + origin + url:url;
-    options.headers  = proxy ? { 'Host': origin }:null;
+    options.path     = proxy ? "http://" + origin + url : url;
+    options.headers  = proxy ? { 'Host': origin } : null;
     options.method   = mode;
     options.keepAlive= !!keepAliveAgent;
-    //options.agent    = keepAliveAgent;    
     options.body     = payload;
 
+    if (options.keepAlive && ssl) {
+        options.agent = keepAliveAgentSSL;
+    } else if (options.keepAlive) {
+        options.agent = keepAliveAgent;
+    }
+
     require('http').globalAgent.maxSockets = Infinity;
+
     try {
         request = (ssl ? https : http)['request'](options, function(response) {
             response.setEncoding('utf8');
@@ -178,21 +199,23 @@ function xdr( setup ) {
                 http_data['response']['status'] = statusCode;
                 http_data['response']['body'] = body;
                 switch(statusCode) {
+                    case 200:
+                        break;
                     case 401:
                     case 402:
                     case 403:
                         http_data['category'] = 'access_denied';
+                    default:
+                        
                         try {
                             http_data['response']['body'] = body;
                             response = JSON['parse'](body);
                             done(1, response, http_data);
                         }
                         catch (r) {
-                            return done(1, null, http_data);
+                            return done(1, {status : statusCode, payload : null, message : body}, http_data);
                         }
                         return;
-                    default:
-                        break;
                 }
                 finished();
             });
@@ -256,7 +279,7 @@ function crypto_obj() {
 }
 
 function keepAliveIsEmbedded() {
-  return 'EventEmitter' in http.Agent.super_;
+    return 'EventEmitter' in http.Agent.super_;
 }
 
 
@@ -273,23 +296,27 @@ var CREATE_PUBNUB = function(setup) {
       keepAliveAgent = undefined;
     }
 
-    SELF = function(setup) {
+    var SELF = function(setup) {
         return CREATE_PUBNUB(setup);
-    }
+    };
+
     var PN = PN_API(setup);
+
     for (var prop in PN) {
         if (PN.hasOwnProperty(prop)) {
             SELF[prop] = PN[prop];
         }
     }
+
     SELF.init = SELF;
     SELF.secure = SELF;
     SELF.ready();
-    return SELF;
-}
-CREATE_PUBNUB.init = CREATE_PUBNUB;
 
-CREATE_PUBNUB.unique = unique
+    return SELF;
+};
+
+CREATE_PUBNUB.init = CREATE_PUBNUB;
+CREATE_PUBNUB.unique = unique;
 CREATE_PUBNUB.secure = CREATE_PUBNUB;
-module.exports = CREATE_PUBNUB
+module.exports = CREATE_PUBNUB;
 module.exports.PNmessage = PNmessage;

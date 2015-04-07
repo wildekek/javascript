@@ -73,7 +73,7 @@ var nextorigin_cache_busting = (function() {
         return origin.indexOf('pubsub.') > 0
             && origin.replace(
              'pubsub', 'ps' + (
-                failover ? get_uuid().split('-')[0] :
+                failover ? generate_uuid().split('-')[0] :
                 (++ori < max? ori : ori=1)
             ) ) || origin;
     }
@@ -157,9 +157,10 @@ function timeout( fun, wait ) {
 /**
  * uuid
  * ====
- * var my_uuid = uuid();
+ * var my_uuid = generate_uuid();
  */
-function get_uuid(callback) {
+
+function generate_uuid(callback) {
     var u = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
     function(c) {
         var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
@@ -201,6 +202,13 @@ function map( list, fun ) {
     var fin = [];
     each( list || [], function( k, v ) { fin.push(fun( k, v )) } );
     return fin;
+}
+
+
+function pam_encode(str) {
+  return encodeURIComponent(str).replace(/[!'()*~]/g, function(c) {
+    return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+  });
 }
 
 /**
@@ -353,12 +361,13 @@ function PN_API(setup) {
     ,   RESUMED       = false
     ,   CHANNELS      = {}
     ,   CHANNEL_GROUPS       = {}
+    ,   SUB_ERROR     = function(){}
     ,   STATE         = {}
     ,   PRESENCE_HB_TIMEOUT  = null
     ,   PRESENCE_HB          = validate_presence_heartbeat(
         setup['heartbeat'] || setup['pnexpires'] || 0, setup['error']
     )
-    ,   PRESENCE_HB_INTERVAL = setup['heartbeat_interval'] || PRESENCE_HB - 3
+    ,   PRESENCE_HB_INTERVAL = setup['heartbeat_interval'] || (PRESENCE_HB / 2) -1
     ,   PRESENCE_HB_RUNNING  = false
     ,   ORIGIN_HB_TIMEOUT     = null
     ,   ORIGIN_HB_INTERVAL    = setup['origin_heartbeat_interval'] || 60000
@@ -382,8 +391,12 @@ function PN_API(setup) {
     ,   origin_hb_callback       = setup['origin_heartbeat_callback']
     ,   origin_hb_error_callback = setup['origin_heartbeat_error_callback'] 
     ,   UUID          = setup['uuid'] || ( !setup['unique_uuid'] && db && db['get'](SUBSCRIBE_KEY+'uuid') || '')
+    ,   USE_INSTANCEID = setup['instance_id'] || false
+    ,   INSTANCEID     = ''
     ,   _poll_timer
     ,   _poll_timer2;
+
+    if (PRESENCE_HB === 2) PRESENCE_HB_INTERVAL = 1;
 
     var crypto_obj    = setup['crypto_obj'] ||
         {
@@ -435,7 +448,7 @@ function PN_API(setup) {
 
         for (var i in l) {
             var k = l[i]
-            si += k + "=" + encode(params[k]) ;
+            si += k + "=" + pam_encode(params[k]) ;
             if (i != l.length - 1) si += "&"
         }
         return si;
@@ -443,6 +456,10 @@ function PN_API(setup) {
 
     function validate_presence_heartbeat(heartbeat, cur_heartbeat, error) {
         var err = false;
+
+        if (typeof heartbeat === 'undefined') {
+            return cur_heartbeat;
+        }
 
         if (typeof heartbeat === 'number') {
             if (heartbeat > PRESENCE_HB_THRESHOLD || heartbeat == 0)
@@ -823,6 +840,8 @@ function PN_API(setup) {
 
             if (jsonp != '0') data['callback'] = jsonp;
 
+            if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
+
             xdr({
                 blocking : blocking || SSL,
                 timeout  : NON_SUBSCRIBE_TIMEOUT,
@@ -863,6 +882,8 @@ function PN_API(setup) {
 
             if (channel_group && channel_group.length > 0) data['channel-group'] = channel_group;
 
+            if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
+
             xdr({
                 blocking : blocking || SSL,
                 timeout  : NON_SUBSCRIBE_TIMEOUT,
@@ -899,21 +920,25 @@ function PN_API(setup) {
         'get_heartbeat' : function() {
             return PRESENCE_HB;
         },
-        'set_heartbeat' : function(heartbeat) {
-            PRESENCE_HB = validate_presence_heartbeat(heartbeat, PRESENCE_HB_INTERVAL, error);
-            if (!PRESENCE_HB || PRESENCE_HB < PRESENCE_HB_INTERVAL) {
-                PRESENCE_HB_INTERVAL = (PRESENCE_HB - 3 >= 1)?PRESENCE_HB - 3:1;
+        'set_heartbeat' : function(heartbeat, heartbeat_interval) {
+            PRESENCE_HB = validate_presence_heartbeat(heartbeat, PRESENCE_HB, error);
+            PRESENCE_HB_INTERVAL = heartbeat_interval || (PRESENCE_HB / 2) - 1;
+            if (PRESENCE_HB == 2) {
+                PRESENCE_HB_INTERVAL = 1;
             }
             CONNECT();
             _presence_heartbeat();
         },
+        
         'get_heartbeat_interval' : function() {
             return PRESENCE_HB_INTERVAL;
         },
+        
         'set_heartbeat_interval' : function(heartbeat_interval) {
             PRESENCE_HB_INTERVAL = heartbeat_interval;
             _presence_heartbeat();
         },
+        
         'get_version' : function() {
             return SDK_VER;
         },
@@ -957,6 +982,7 @@ function PN_API(setup) {
 
         'channel_group' : function(args, callback) {
             var ns_ch       = args['channel_group']
+            ,   callback    = callback         || args['callback']
             ,   channels    = args['channels'] || args['channel']
             ,   cloak       = args['cloak']
             ,   namespace
@@ -1293,9 +1319,14 @@ function PN_API(setup) {
                 'config'            : getConfig()
             };
             var jsonp = jsonp_cb();
+
+            var data = { 'uuid' : UUID, 'auth' : AUTH_KEY }
+
+            if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
+
             xdr({
                 callback : jsonp,
-                data     : _get_url_params({ 'uuid' : UUID, 'auth' : AUTH_KEY }),
+                data     : _get_url_params(data),
                 timeout  : NON_SUBSCRIBE_TIMEOUT,
                 url      : [STD_ORIGIN, 'time', jsonp],
                 success  : function(response, http_data) {
@@ -1362,6 +1393,8 @@ function PN_API(setup) {
             params = { 'uuid' : UUID, 'auth' : auth_key }
 
             if (!store) params['store'] ="0"
+
+            if (USE_INSTANCEID) params['instanceid'] = INSTANCEID;
 
             // Queue Message Send
             PUB_QUEUE[add_msg]({
@@ -1474,6 +1507,7 @@ function PN_API(setup) {
             ,   state           = args['state']
             ,   V2              = args['v2']
             ,   heartbeat       = args['heartbeat'] || args['pnexpires']
+            ,   heartbeat_interval = args['heartbeat_interval']
             ,   restore         = args['restore'] || SUB_RESTORE;
 
             
@@ -1494,8 +1528,8 @@ function PN_API(setup) {
 
                     status && _invoke_callback_v4(r, status_event, op_params, status);
                 }
-                if (args['error']){
-                    var errcb = args['error'];
+                if (args['error'] || SUB_ERROR){
+                    var errcb = args['error'] || SUB_ERROR || function(){};
                     errcb && _invoke_error(r, errcb);
 
                 }
@@ -1567,8 +1601,8 @@ function PN_API(setup) {
             //if (!callback)      return error('Missing Callback');
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
 
-            if (heartbeat || heartbeat === 0) {
-                SELF['set_heartbeat'](heartbeat);
+            if (heartbeat || heartbeat === 0 || heartbeat_interval || heartbeat_interval === 0) {
+                SELF['set_heartbeat'](heartbeat, heartbeat_interval);
             }
 
             // Setup Channel(s)
@@ -1616,6 +1650,7 @@ function PN_API(setup) {
                     if (noheresync) return;
                     SELF['here_now']({
                         'channel'  : channel,
+                        'data'     : _get_url_params({ 'uuid' : UUID, 'auth' : auth_key }),
                         'callback' : function(here) {
                             each( 'uuids' in here ? here['uuids'] : [],
                             function(uid) { presence( {
@@ -1656,7 +1691,8 @@ function PN_API(setup) {
                         'channel_group'  : channel_group + PRESENCE_SUFFIX,
                         'callback' : presence,
                         'restore'  : restore,
-                        'v2'       : V2
+                        'v2'       : V2,
+                        'auth_key' : auth_key
                     });
 
                     // Presence Subscribed?
@@ -1666,6 +1702,7 @@ function PN_API(setup) {
                     if (noheresync) return;
                     SELF['here_now']({
                         'channel_group'  : channel_group,
+                        'data'           : _get_url_params({ 'uuid' : UUID, 'auth' : auth_key }),
                         'callback' : function(here) {
                             each( 'uuids' in here ? here['uuids'] : [],
                             function(uid) { presence( {
@@ -1949,6 +1986,9 @@ function PN_API(setup) {
                     timeout( _connect, windowing );
                 }
 
+                if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
+
+
                 start_presence_heartbeat();
                 start_origin_heartbeat();
                 start_optimal_origin_check_heartbeat();
@@ -1957,7 +1997,7 @@ function PN_API(setup) {
                     timeout  : sub_timeout,
                     callback : jsonp,
                     fail     : function(response, http_data) {
-                        if (response['error'] && response['service']) {
+                        if (response && response['error'] && response['service']) {
                             err(response, http_data);
                             _test_connection(1);
                         } else {
@@ -2034,6 +2074,7 @@ function PN_API(setup) {
                 !channel && url.push('channel') && url.push(','); 
             }
 
+            if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
 
             xdr({
                 callback : jsonp,
@@ -2076,6 +2117,8 @@ function PN_API(setup) {
             if (!SUBSCRIBE_KEY) return error('Missing Subscribe Key');
 
             if (jsonp != '0') { data['callback'] = jsonp; }
+
+            if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
 
             xdr({
                 callback : jsonp,
@@ -2142,6 +2185,8 @@ function PN_API(setup) {
             }
 
             data['state'] = JSON.stringify(state);
+
+            if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
 
             if (state) {
                 url      = [
@@ -2317,6 +2362,8 @@ function PN_API(setup) {
                 params['remove'] = channel;
             }
 
+            if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
+
             xdr({
                 callback : jsonp,
                 data     : params,
@@ -2469,6 +2516,8 @@ function PN_API(setup) {
             if (!channels) channels = ',';
             if (channel_groups) data['channel-group'] = channel_groups;
 
+            if (USE_INSTANCEID) data['instanceid'] = INSTANCEID;
+
             xdr({
                 callback : jsonp,
                 data     : _get_url_params(data),
@@ -2531,7 +2580,7 @@ function PN_API(setup) {
         'xdr'           : xdr,
         'ready'         : ready,
         'db'            : db,
-        'uuid'          : get_uuid,
+        'uuid'          : generate_uuid,
         'map'           : map,
         'each'          : each,
         'each-channel'  : each_channel,
@@ -2573,8 +2622,9 @@ function PN_API(setup) {
         clearTimeout(_poll_timer);
         clearTimeout(_poll_timer2);
     }
-
+    
     if (!UUID) UUID = SELF['uuid']();
+    if (!INSTANCEID) INSTANCEID = SELF['uuid']();
     db['set']( SUBSCRIBE_KEY + 'uuid', UUID );
 
     _poll_timer  = timeout( _poll_online,  1000    );
