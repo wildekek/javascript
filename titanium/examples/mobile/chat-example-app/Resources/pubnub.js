@@ -2239,14 +2239,14 @@ function PN_API(setup) {
             ,   err              = args['error']
             ,   result           = args['result']   || result_cb
             ,   status           = args['status']   || status_cb
-            ,   channel         = args['channel']
+            ,   channel         = args['channel']  || args['channels']
             ,   channel_group   = args['channel_group']
             ,   jsonp           = jsonp_cb()
             ,   ttl             = args['ttl']
             ,   r               = (args['read'] )?"1":"0"
             ,   w               = (args['write'])?"1":"0"
             ,   m               = (args['manage'])?"1":"0"
-            ,   auth_key        = args['auth_key'];
+            ,   auth_key        = args['auth_key'] || args['auth_keys'];
 
             var op_params = args['op_params'] || {
                 'operation'         : 'grant',
@@ -2271,6 +2271,12 @@ function PN_API(setup) {
             };
             if (args['manage']) {
                 data['m'] = m;
+            }
+            if (isArray(channel)) {
+                channel = channel['join'](',');
+            }
+            if (isArray(auth_key)) {
+                auth_key = auth_key['join'](',');
             }
             if (typeof channel != 'undefined' && channel != null && channel.length > 0) data['channel'] = channel;
             if (typeof channel_group != 'undefined' && channel_group != null && channel_group.length > 0) {
