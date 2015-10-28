@@ -1,7 +1,7 @@
 
 
-var publish_key = "demo";
-var subscribe_key = "demo";
+var publish_key = "ds";
+var subscribe_key = "ds";
 var origin = "ps1.pubnub.com";
 
 
