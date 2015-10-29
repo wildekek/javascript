@@ -2628,8 +2628,9 @@ function ajax( setup ) {
         }
     ,   complete = 0
     ,   loaded   = 0
-    ,   xhrtme   = setup.timeout || DEF_TIMEOUT
-    ,   timer    = timeout( function(){done(1, {"message" : "timeout"})}, xhrtme )
+    ,   xhrtme   = 5000 || setup.timeout || DEF_TIMEOUT
+    ,   timer    = timeout( function(r){done(1, {"message" : "timeout", "extended"  : "" + JSON.stringify(r)})}, xhrtme )
+//    ,   timer    = timeout( function(r){done(1, {"message" : "timeout"})}, xhrtme )
     ,   fail     = setup.fail    || function(){}
     ,   data     = setup.data    || {}
     ,   success  = setup.success || function(){}

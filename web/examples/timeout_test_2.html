@@ -23,7 +23,7 @@ function publish(pubnub, channel, message, count, index, iteration) {
             'callback' : function(r){
                 ++total_messages;
                 ++count;
-                if (count <= 20) {
+                if (count < 100) {
                     publish(pubnub, channel, message, count, index, iteration);
                 } else {
                     console.log("Finshed, error count " + errors + 
@@ -34,9 +34,11 @@ function publish(pubnub, channel, message, count, index, iteration) {
             },   
             'error' : function(r) {
                 if (r['message'] === "timeout") {
+                    console.log(JSON.stringify(r));
                     timeouts++;
                     if (timeouts == 1) {
-                        console.log("timeout happened at " + pubnub_arr.length);
+                        console.log("timeout happened at " + pubnub_arr.length +
+                         ", index = " + index + ", iteration = " + iteration);
                     }
                     errors++;
                 }
@@ -45,23 +47,21 @@ function publish(pubnub, channel, message, count, index, iteration) {
     }, 50);
 }
 
-function test(i) {
-    setTimeout(function(){
-        pubnub_arr[i] = PUBNUB.init({
-            'origin' : origin,
-            'publish_key' : publish_key,
-            'subscribe_key' : subscribe_key,
-        });
-
-        for (var j = 1 ; j <= pubnub_arr.length; j++) {
+function test() {
+        for (var i = 0; i < 7; i++) {
+            pubnub_arr[i] = PUBNUB.init({
+                'origin' : origin,
+                'publish_key' : publish_key,
+                'subscribe_key' : subscribe_key,
+            });
+        }
+        for (var j = 0 ; j < pubnub_arr.length; j++) {
             var pn = pubnub_arr[j];
             pn && publish(pn, "channel", "message", 0, j, i);
         }
-    }, 10000);
 }
 
-for (var i = 1; i <= 10; i++) {
-    test(i);
-}
+test();
+
 </script>
 </head>
