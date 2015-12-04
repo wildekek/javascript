@@ -1560,8 +1560,8 @@ function PN_API(setup) {
                     callback : jsonp,
                     fail     : function(response) {
                         if (response && response['error'] && response['service']) {
-                            _invoke_error(response, SUB_ERROR);
                             _test_connection(1);
+                            _invoke_error(response, SUB_ERROR);
                         } else {
                             SELF['time'](function(success){
                                 !success && ( _invoke_error(response, SUB_ERROR));
@@ -1686,6 +1686,9 @@ function PN_API(setup) {
                         })();
 
                         var latency = detect_latency(+messages[1]);
+
+                        timeout( _connect, windowing );
+                        
                         each( messages[0], function(msg) {
                             var next = next_callback();
                             var decrypted_msg = decrypt(msg,
@@ -1693,7 +1696,6 @@ function PN_API(setup) {
                             next[0] && next[0]( decrypted_msg, messages, next[2] || next[1], latency, next[1]);
                         });
 
-                        timeout( _connect, windowing );
                     }
                 });
             }
@@ -2663,9 +2665,9 @@ function ajax( setup ) {
                     default:
                         try {
                             response = JSON['parse'](xhr.responseText);
-                            done(1,response);
                         }
                         catch (r) { return done(1, {status : xhr.status, payload : null, message : xhr.responseText}); }
+                        done(1,response);
                         return;
                 }
             }

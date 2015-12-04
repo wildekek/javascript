@@ -329,9 +329,9 @@ function ajax( setup ) {
                     default:
                         try {
                             response = JSON['parse'](xhr.responseText);
-                            done(1,response);
                         }
                         catch (r) { return done(1, {status : xhr.status, payload : null, message : xhr.responseText}); }
+                        done(1,response);
                         return;
                 }
             }
