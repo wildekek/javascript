@@ -14,13 +14,11 @@ function objectToListSorted(o: Object): Array<mixed> {
   return objectToList(o).sort();
 }
 
-function signPamFromParams(params: Object): string {
-  let l = objectToListSorted(params);
-  return l.map((paramKey) => paramKey + '=' + pamEncode(params[paramKey])).join('&');
-}
-
 module.exports = {
-  signPamFromParams,
+  signPamFromParams(params: Object): string {
+    let l = objectToListSorted(params);
+    return l.map((paramKey) => paramKey + '=' + pamEncode(params[paramKey])).join('&');
+  },
   endsWith(searchString: string, suffix: string): boolean {
     return searchString.indexOf(suffix, this.length - suffix.length) !== -1;
   }
