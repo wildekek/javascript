@@ -1,6 +1,5 @@
 /* @flow */
 
-import Networking from '../components/networking';
 import Config from '../components/config';
 import { EndpointDefinition } from '../flow_interfaces';
 import uuidGenerator from 'uuid';
@@ -11,7 +10,6 @@ type BaseConstruct = {
 
 export default class {
 
-  _networking: Networking;
   _config: Config;
   _componentName: string;
 

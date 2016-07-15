@@ -62,10 +62,11 @@ type SupportedParams = {
   uuid: EndpointKeyDefinition,
 }
 
-export type endpointDefinition = {
+export type EndpointDefinition = {
   params: SupportedParams,
   timeout: number,
-  url: string
+  url: string,
+  operation: string
 }
 
 export type StateChangeAnnouncement = {

@@ -24,7 +24,8 @@ export default class extends BaseEndpoint {
       params: {
         uuid: { required: false }
       },
-      url: '/time/0'
+      url: '/time/0',
+      operation: 'PNTimeOperation'
     };
 
     // validate this request and return false if stuff is missing
