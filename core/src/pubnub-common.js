@@ -1693,7 +1693,7 @@ function PN_API(setup) {
           _invoke_callback(response, callback, err);
         },
         fail: function (response) {
-          console.log("PAM FAILURE", data, args);
+          console.log("PAM FAILURE", data, args, sign_input);
           _invoke_error(response, err);
         },
         url: [
