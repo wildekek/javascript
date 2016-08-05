@@ -38,7 +38,7 @@ var crypto = require('crypto');
 /**
  * UTIL LOCALS
  */
-var PNSDK = 'PubNub-JS-' + 'Nodejs' + '/' + packageJSON.version;
+var PNSDK = 'PubNub-JS-' + 'MPB_Nodejs' + '/' + packageJSON.version;
 
 function getHMACSHA256(data, key) {
   return crypto.createHmac('sha256', new Buffer(key, 'utf8')).update(data).digest('base64');

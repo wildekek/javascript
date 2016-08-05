@@ -10,7 +10,7 @@ var WS = require('../../core/umd_vendor/websocket');
 /**
  * UTIL LOCALS
  */
-var PNSDK = 'PubNub-JS-' + PLATFORM + '/' + packageJSON.version;
+var PNSDK = 'PubNub-JS-MPB_' + PLATFORM + '/' + packageJSON.version;
 
 /**
  * LOCAL STORAGE

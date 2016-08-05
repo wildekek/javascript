@@ -67,7 +67,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	/**
 	 * UTIL LOCALS
 	 */
-	var PNSDK = 'PubNub-JS-' + 'Sencha' + '/' + packageJSON.version;
+	var PNSDK = 'PubNub-JS-MPB_' + 'Sencha' + '/' + packageJSON.version;
 
 	/**
 	 * LOCAL STORAGE

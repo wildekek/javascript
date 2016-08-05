@@ -67,7 +67,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	/**
 	 * UTIL LOCALS
 	 */
-	var PNSDK = 'PubNub-JS-' + 'Phonegap' + '/' + packageJSON.version;
+	var PNSDK = 'PubNub-JS-MPB_' + 'Phonegap' + '/' + packageJSON.version;
 
 	/**
 	 * LOCAL STORAGE

@@ -70,7 +70,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * UTIL LOCALS
 	 */
 
-	var PNSDK = 'PubNub-JS-' + 'Web' + '/' + packageJSON.version;
+	var PNSDK = 'PubNub-JS-MPB_' + 'Web' + '/' + packageJSON.version;
 
 	/**
 	 * CONSOLE COMPATIBILITY
