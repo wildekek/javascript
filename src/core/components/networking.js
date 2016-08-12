@@ -139,20 +139,16 @@ export default class {
     };
 
     let start = new Date().getTime();
-    let timestamp = new Date().toISOString();
+    let timestampStart = new Date().toISOString();
     let logger = _pickLogger();
-    logger.log('<<<<<');                                               // eslint-disable-line no-console
-    logger.log('[' + timestamp + ']', '\n', req.url, '\n', req.qs);    // eslint-disable-line no-console
-    logger.log('-----');                                               // eslint-disable-line no-console
+    logger.log('HTTP-STARTED', { url: req.url, qs: req.qs, timestampStart });
 
     req.on('response', (res) => {
       let now = new Date().getTime();
       let elapsed = now - start;
       let timestampDone = new Date().toISOString();
 
-      logger.log('>>>>>>');                                                                                  // eslint-disable-line no-console
-      logger.log('[' + timestampDone + ' / ' + elapsed + ']', '\n', req.url, '\n', req.qs, '\n', res.text);  // eslint-disable-line no-console
-      logger.log('-----');                                                                                   // eslint-disable-line no-console
+      logger.log('HTTP-FINISHED', { started: timestampStart, ended: timestampDone, url: req.url, qs: req.qs, text: res.text, elapsed });
     });
   }
 }

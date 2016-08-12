@@ -102,18 +102,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    setup.sendBeacon = sendBeacon;
 	    setup.sdkFamily = 'Web';
 
-	    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(_class).call(this, setup));
-
-	    window.addEventListener('offline', function () {
-	      _this._listenerManager.announceNetworkIssues();
-	      _this.stop.bind(_this);
-	    });
-
-	    window.addEventListener('online', function () {
-	      _this._listenerManager.announceConnectionRestored();
-	      _this.reconnect.bind(_this);
-	    });
-	    return _this;
+	    return _possibleConstructorReturn(this, Object.getPrototypeOf(_class).call(this, setup));
 	  }
 
 	  return _class;
@@ -738,20 +727,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	      };
 
 	      var start = new Date().getTime();
-	      var timestamp = new Date().toISOString();
+	      var timestampStart = new Date().toISOString();
 	      var logger = _pickLogger();
-	      logger.log('<<<<<');
-	      logger.log('[' + timestamp + ']', '\n', req.url, '\n', req.qs);
-	      logger.log('-----');
+	      logger.log('HTTP-STARTED', { url: req.url, qs: req.qs, timestampStart: timestampStart });
 
 	      req.on('response', function (res) {
 	        var now = new Date().getTime();
 	        var elapsed = now - start;
 	        var timestampDone = new Date().toISOString();
 
-	        logger.log('>>>>>>');
-	        logger.log('[' + timestampDone + ' / ' + elapsed + ']', '\n', req.url, '\n', req.qs, '\n', res.text);
-	        logger.log('-----');
+	        logger.log('HTTP-FINISHED', { started: timestampStart, ended: timestampDone, url: req.url, qs: req.qs, text: res.text, elapsed: elapsed });
 	      });
 	    }
 	  }]);
@@ -3329,12 +3314,20 @@ return /******/ (function(modules) { // webpackBootstrap
 	    this._timetoken = 0;
 	    this._subscriptionStatusAnnounced = false;
 
-	    this._reconnectionManager = new _reconnection_manager2.default({ timeEndpoint: timeEndpoint });
-	    this._reconnectionManager.onReconnection(function () {
+	    var onConnectionStateChange = function onConnectionStateChange(isConnected) {
 	      _this.reconnect();
 	      _this._subscriptionStatusAnnounced = true;
-	      _this._listenerManager.announceConnectionRestored();
-	    });
+
+	      if (isConnected) {
+	        _this._listenerManager.announceConnectionRestored();
+	        _this.reconnect();
+	      } else if (!isConnected) {
+	        _this._listenerManager.announceNetworkIssues();
+	        _this.disconnect();
+	      }
+	    };
+
+	    this._reconnectionManager = new _reconnection_manager2.default({ timeEndpoint: timeEndpoint, onConnectionStateChange: onConnectionStateChange });
 	  }
 
 	  _createClass(_class, [{
@@ -3386,6 +3379,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      });
 
 	      this._subscriptionStatusAnnounced = false;
+	      this._reconnectionManager.startPolling();
 	      this.reconnect();
 	    }
 	  }, {
@@ -3413,6 +3407,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this._leaveEndpoint({ channels: channels, channelGroups: channelGroups }, function (status) {
 	          _this4._listenerManager.announceStatus(status);
 	        });
+	      }
+
+	      if (this._channels.length === 0 && this._presenceChannelGroups === 0) {
+	        this._reconnectionManager.stopPolling();
 	      }
 
 	      this.reconnect();
@@ -3873,21 +3871,24 @@ return /******/ (function(modules) { // webpackBootstrap
 	var _class = function () {
 	  function _class(_ref) {
 	    var timeEndpoint = _ref.timeEndpoint;
+	    var onConnectionStateChange = _ref.onConnectionStateChange;
 
 	    _classCallCheck(this, _class);
 
 	    this._timeEndpoint = timeEndpoint;
+	    this._onConnectionStateChange = onConnectionStateChange;
+	    this._connected = true;
 	  }
 
 	  _createClass(_class, [{
-	    key: 'onReconnection',
-	    value: function onReconnection(reconnectionCallback) {
-	      this._reconnectionCallback = reconnectionCallback;
-	    }
-	  }, {
 	    key: 'startPolling',
 	    value: function startPolling() {
-	      this._timeTimer = setInterval(this._performTimeLoop.bind(this), 3000);
+	      this._timeTimer = setInterval(this._performTimeLoop.bind(this), 6000);
+	    }
+	  }, {
+	    key: 'stopPolling',
+	    value: function stopPolling() {
+	      clearInterval(this._timeTimer);
 	    }
 	  }, {
 	    key: '_performTimeLoop',
@@ -3895,9 +3896,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	      var _this = this;
 
 	      this._timeEndpoint(function (status) {
-	        if (!status.error) {
-	          clearInterval(_this._timeTimer);
-	          _this._reconnectionCallback();
+	        if (status.error && _this._connected) {
+	          _this._connected = false;
+	          _this._onConnectionStateChange(_this._connected);
+	        } else if (!status.error && !_this._connected) {
+	          _this._connected = false;
+	          _this._onConnectionStateChange(_this._connected);
 	        }
 	      });
 	    }

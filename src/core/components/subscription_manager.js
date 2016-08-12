@@ -80,12 +80,20 @@ export default class {
     this._timetoken = 0;
     this._subscriptionStatusAnnounced = false;
 
-    this._reconnectionManager = new ReconnectionManager({ timeEndpoint });
-    this._reconnectionManager.onReconnection(() => {
+    let onConnectionStateChange = (isConnected) => {
       this.reconnect();
       this._subscriptionStatusAnnounced = true;
-      this._listenerManager.announceConnectionRestored();
-    });
+
+      if (isConnected) {
+        this._listenerManager.announceConnectionRestored();
+        this.reconnect();
+      } else if (!isConnected) {
+        this._listenerManager.announceNetworkIssues();
+        this.disconnect();
+      }
+    };
+
+    this._reconnectionManager = new ReconnectionManager({ timeEndpoint, onConnectionStateChange });
   }
 
   adaptStateChange(args: StateArgs, callback: Function) {
@@ -118,6 +126,7 @@ export default class {
     });
 
     this._subscriptionStatusAnnounced = false;
+    this._reconnectionManager.startPolling();
     this.reconnect();
   }
 
@@ -138,6 +147,11 @@ export default class {
       this._leaveEndpoint({ channels, channelGroups }, (status) => {
         this._listenerManager.announceStatus(status);
       });
+    }
+
+    // stop polling if we unsubscribed from everything
+    if (this._channels.length === 0 && this._presenceChannelGroups === 0) {
+      this._reconnectionManager.stopPolling();
     }
 
     this.reconnect();

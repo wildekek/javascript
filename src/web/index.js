@@ -33,17 +33,6 @@ export default class extends PubNubCore {
     setup.sdkFamily = 'Web';
 
     super(setup);
-
-    // mount network events.
-    window.addEventListener('offline', () => {
-      this._listenerManager.announceNetworkIssues();
-      this.stop.bind(this);
-    });
-
-    window.addEventListener('online', () => {
-      this._listenerManager.announceConnectionRestored();
-      this.reconnect.bind(this);
-    });
   }
 
 }
