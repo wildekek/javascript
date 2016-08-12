@@ -54,11 +54,10 @@ export default class {
 
       // if we are still not connected, bump up the unsuccessful count for exponential back-off.
       if (!this._connected) {
-        this._failedTries =  this._failedTries === MAX_FAILED ? 1 : this._failedTries += 1;
+        this._failedTries = this._failedTries === MAX_FAILED ? 1 : this._failedTries += 1;
       }
 
       this.startPolling();
-
     });
   }
 
