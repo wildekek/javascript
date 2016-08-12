@@ -81,9 +81,6 @@ export default class {
     this._subscriptionStatusAnnounced = false;
 
     let onConnectionStateChange = (isConnected) => {
-      this.reconnect();
-      this._subscriptionStatusAnnounced = true;
-
       if (isConnected) {
         this._listenerManager.announceConnectionRestored();
         this.reconnect();
