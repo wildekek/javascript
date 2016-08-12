@@ -43,7 +43,8 @@ import { InternalSetupStruct } from './flow_interfaces';
 export default class {
 
   _config: Config;
-  _listenerManager: ListenerManager;
+  _signalNetworkDisconnected: Function;
+  _signalNetworkReconnected: Function;
 
   // tell flow about the mounted endpoint
   time: Function;
@@ -91,7 +92,7 @@ export default class {
     const networking = new Networking({ config, crypto, sendBeacon });
 
     let modules = { config, networking, crypto };
-    const listenerManager = this._listenerManager = new ListenerManager();
+    const listenerManager = new ListenerManager();
 
     // new
     const timeEndpoint = endpointCreator.bind(this, modules, timeEndpointConfig);
@@ -111,6 +112,9 @@ export default class {
 
     this.addListener = listenerManager.addListener.bind(listenerManager);
     this.removeListener = listenerManager.removeListener.bind(listenerManager);
+
+    this._signalNetworkDisconnected = subscriptionManager.signalNetworkDisconnected.bind(subscriptionManager);
+    this._signalNetworkReconnected = subscriptionManager.signalNetworkReconnected.bind(subscriptionManager);
 
     /** channel groups **/
     this.channelGroups = {

@@ -90,6 +90,11 @@ export default class {
   */
   _useSendBeacon: boolean;
 
+  /*
+    send periodical time request events when the client is connected to test for connectivity.
+  */
+  periodicalConnectivityCheck: boolean;
+
   constructor({ setup, db } : ConfigConstructArgs) {
     this._db = db;
 
@@ -106,6 +111,7 @@ export default class {
 
     this.origin = setup.origin || 'pubsub.pubnub.com';
     this.secure = setup.ssl || false;
+    this.periodicalConnectivityCheck = setup.periodicalConnectivityCheck || false;
 
     // if location config exist and we are in https, force secure to true.
     if (typeof location !== 'undefined' && location.protocol === 'https:') {

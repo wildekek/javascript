@@ -33,6 +33,14 @@ export default class extends PubNubCore {
     setup.sdkFamily = 'Web';
 
     super(setup);
+
+    window.addEventListener('offline', () => {
+      this._signalNetworkDisconnected();
+    });
+
+    window.addEventListener('online', () => {
+      this._signalNetworkReconnected();
+    });
   }
 
 }
