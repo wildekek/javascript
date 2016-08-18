@@ -848,9 +848,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  if (!isObject(obj)) return obj;
 	  var pairs = [];
 	  for (var key in obj) {
-	    if (null != obj[key]) {
-	      pushEncodedKeyValuePair(pairs, key, obj[key]);
-	    }
+	    pushEncodedKeyValuePair(pairs, key, obj[key]);
 	  }
 	  return pairs.join('&');
 	}
@@ -865,18 +863,22 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 
 	function pushEncodedKeyValuePair(pairs, key, val) {
-	  if (Array.isArray(val)) {
-	    return val.forEach(function(v) {
-	      pushEncodedKeyValuePair(pairs, key, v);
-	    });
-	  } else if (isObject(val)) {
-	    for(var subkey in val) {
-	      pushEncodedKeyValuePair(pairs, key + '[' + subkey + ']', val[subkey]);
+	  if (val != null) {
+	    if (Array.isArray(val)) {
+	      val.forEach(function(v) {
+	        pushEncodedKeyValuePair(pairs, key, v);
+	      });
+	    } else if (isObject(val)) {
+	      for(var subkey in val) {
+	        pushEncodedKeyValuePair(pairs, key + '[' + subkey + ']', val[subkey]);
+	      }
+	    } else {
+	      pairs.push(encodeURIComponent(key)
+	        + '=' + encodeURIComponent(val));
 	    }
-	    return;
+	  } else if (val === null) {
+	    pairs.push(encodeURIComponent(key));
 	  }
-	  pairs.push(encodeURIComponent(key)
-	    + '=' + encodeURIComponent(val));
 	}
 
 	/**
@@ -2723,13 +2725,13 @@ return /******/ (function(modules) { // webpackBootstrap
 			"messaging"
 		],
 		"dependencies": {
-			"superagent": "^2.0.0",
+			"superagent": "^2.2.0",
 			"uuid": "^2.0.2"
 		},
 		"noAnalyze": false,
 		"devDependencies": {
 			"babel-core": "^6.10.4",
-			"babel-eslint": "6.1.0",
+			"babel-eslint": "6.1.2",
 			"babel-plugin-add-module-exports": "^0.2.1",
 			"babel-plugin-transform-class-properties": "^6.10.2",
 			"babel-plugin-transform-flow-strip-types": "^6.8.0",
@@ -2741,7 +2743,7 @@ return /******/ (function(modules) { // webpackBootstrap
 			"eslint-plugin-import": "^1.9.2",
 			"eslint-plugin-mocha": "3.0.0",
 			"eslint-plugin-react": "5.2.2",
-			"flow-bin": "^0.29.0",
+			"flow-bin": "^0.30.0",
 			"gulp": "^3.9.1",
 			"gulp-babel": "^6.1.2",
 			"gulp-clean": "^0.3.2",
@@ -2749,31 +2751,31 @@ return /******/ (function(modules) { // webpackBootstrap
 			"gulp-exec": "^2.1.2",
 			"gulp-flowtype": "^0.4.9",
 			"gulp-gzip": "^1.4.0",
-			"gulp-istanbul": "^1.0.0",
-			"gulp-mocha": "^2.2.0",
+			"gulp-istanbul": "^1.1.0",
+			"gulp-mocha": "^3.0.1",
 			"gulp-rename": "^1.2.2",
 			"gulp-sourcemaps": "^1.6.0",
-			"gulp-uglify": "^1.5.4",
+			"gulp-uglify": "^2.0.0",
 			"imports-loader": "0.6.5",
 			"isparta": "^4.0.0",
 			"json-loader": "0.5.4",
-			"karma": "1.1.1",
+			"karma": "1.2.0",
 			"karma-babel-preprocessor": "^6.0.1",
 			"karma-chai": "0.1.0",
-			"karma-chrome-launcher": "^1.0.1",
+			"karma-chrome-launcher": "^2.0.0",
 			"karma-mocha": "^1.1.1",
 			"karma-phantomjs-launcher": "1.0.1",
 			"karma-spec-reporter": "0.0.26",
-			"mocha": "2.5.3",
+			"mocha": "3.0.2",
 			"nock": "^8.0.0",
-			"phantomjs-prebuilt": "2.1.7",
+			"phantomjs-prebuilt": "2.1.12",
 			"remap-istanbul": "^0.6.4",
 			"run-sequence": "^1.2.1",
 			"sinon": "^1.17.4",
-			"stats-webpack-plugin": "^0.4.0",
-			"uglify-js": "^2.6.4",
+			"stats-webpack-plugin": "^0.4.2",
+			"uglify-js": "^2.7.3",
 			"underscore": "^1.8.3",
-			"webpack": "^1.13.1",
+			"webpack": "^1.13.2",
 			"webpack-dev-server": "1.14.1",
 			"webpack-stream": "^3.2.0"
 		},
