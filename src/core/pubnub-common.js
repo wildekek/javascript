@@ -65,6 +65,7 @@ export default class {
   //
   subscribe: Function;
   unsubscribe: Function;
+  unsubscribeAll: Function;
   reconnect: Function;
   stop: Function;
 
@@ -151,8 +152,12 @@ export default class {
     // subscription related methods
     this.subscribe = subscriptionManager.adaptSubscribeChange.bind(subscriptionManager);
     this.unsubscribe = subscriptionManager.adaptUnsubscribeChange.bind(subscriptionManager);
+    this.unsubscribeAll = subscriptionManager.unsubscribeAll.bind(subscriptionManager);
     this.reconnect = subscriptionManager.reconnect.bind(subscriptionManager);
-    this.stop = subscriptionManager.disconnect.bind(subscriptionManager);
+    this.stop = () => {
+      subscriptionManager.disconnect();
+      subscriptionManager.unsubscribeAll();
+    };
 
     /** config **/
     this.getAuthKey = modules.config.getAuthKey.bind(modules.config);

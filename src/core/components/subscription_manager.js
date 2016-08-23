@@ -138,6 +138,10 @@ export default class {
     this.reconnect();
   }
 
+  unsubscribeAll() {
+    this.adaptUnsubscribeChange({ channels: Object.keys(this._channels), channelGroups: Object.keys(this._channelGroups) });
+  }
+
   reconnect() {
     this._startSubscribeLoop();
     this._registerHeartbeatTimer();

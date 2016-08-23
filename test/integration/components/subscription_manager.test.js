@@ -7,7 +7,7 @@ import utils from '../../utils';
 import PubNub from '../../../lib/node/index.js';
 import _ from 'underscore';
 
-describe('#components/subscription_manger', () => {
+describe('#components/subscription_manager', () => {
   let pubnub;
   let pubnubWithPassingHeartbeats;
 
@@ -142,6 +142,8 @@ describe('#components/subscription_manger', () => {
   it('reports when heartbeats failed', (done) => {
     pubnub.addListener({
       status(statusPayload) {
+        if (statusPayload.operation !== 'PNHeartbeatOperation') return;
+
         let statusWithoutError = _.omit(statusPayload, 'errorData');
         assert.deepEqual({
           category: 'PNUnknownCategory',
@@ -162,6 +164,8 @@ describe('#components/subscription_manger', () => {
 
     pubnub.addListener({
       status(statusPayload) {
+        if (statusPayload.operation !== 'PNHeartbeatOperation') return;
+
         let statusWithoutError = _.omit(statusPayload, 'errorData');
         assert.equal(scope.isDone(), true);
         assert.deepEqual({

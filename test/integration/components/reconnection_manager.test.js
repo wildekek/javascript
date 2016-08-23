@@ -8,7 +8,7 @@ import utils from '../../utils';
 import PubNub from '../../../lib/node/index.js';
 import _ from 'underscore';
 
-describe('#components/reconnection_manger', () => {
+describe('#components/reconnection_manager', () => {
   let pubnub;
   let clock;
 
@@ -46,6 +46,8 @@ describe('#components/reconnection_manger', () => {
 
     pubnub.addListener({
       status(statusPayload) {
+        if (statusPayload.operation !== 'PNSubscribeOperation') return;
+
         let statusWithoutError = _.omit(statusPayload, 'errorData');
         assert.deepEqual({
           category: 'PNNetworkIssuesCategory',

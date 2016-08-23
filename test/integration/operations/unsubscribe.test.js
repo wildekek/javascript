@@ -34,6 +34,7 @@ describe('unsubscribe', () => {
 
       pubnub.addListener({
         status(status) {
+          console.log(status);
           assert.equal(status.error, false);
           assert.equal(scope.isDone(), true);
           done();
@@ -89,6 +90,40 @@ describe('unsubscribe', () => {
       });
 
       pubnub.unsubscribe({ channelGroups: ['cg1', 'cg2'] });
+    });
+  });
+
+  describe('#unsubscribeAll', () => {
+    it('supports leaving for multiple channels', (done) => {
+      const scope = utils.createNock().get('/v2/presence/sub-key/mySubscribeKey/channel/ch1%2Cch2/leave')
+      .query({ pnsdk: 'PubNub-JS-Nodejs/' + pubnub.getVersion(), uuid: 'myUUID' })
+      .reply(200, '{ "status": 200, "message": "OK", "service": "Presence"}');
+
+      pubnub.addListener({
+        status(status) {
+          assert.equal(status.error, false);
+          assert.equal(scope.isDone(), true);
+          done();
+        }
+      });
+
+      pubnub.unsubscribeAll();
+    });
+
+    it('supports leaving for multiple channel group', (done) => {
+      const scope = utils.createNock().get('/v2/presence/sub-key/mySubscribeKey/channel/%2C/leave')
+        .query({ pnsdk: 'PubNub-JS-Nodejs/' + pubnub.getVersion(), uuid: 'myUUID', 'channel-group': 'cg1,cg2' })
+        .reply(200, '{ "status": 200, "message": "OK", "service": "Presence"}');
+
+      pubnub.addListener({
+        status(status) {
+          assert.equal(status.error, false);
+          assert.equal(scope.isDone(), true);
+          done();
+        }
+      });
+
+      pubnub.unsubscribeAll();
     });
   });
 });
