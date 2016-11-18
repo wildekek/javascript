@@ -43,10 +43,20 @@ function generatePNSDK(config: Config): string {
   return base;
 }
 
+function performWork(modules, endpoint, incomingParams, internalCallback) {
+
+}
+
 export default function (modules, endpoint, ...args) {
   let { networking, config, crypto } = modules;
+  let promiseComponent = null;
   let callback = null;
   let incomingParams = {};
+
+  // bridge in Promise support.
+  if (typeof Promise !== 'undefined') {
+    promiseComponent = utils.createPromise();
+  }
 
   if (endpoint.getOperation() === operationConstants.PNTimeOperation || endpoint.getOperation() === operationConstants.PNChannelGroupsOperation) {
     callback = args[0];
@@ -55,6 +65,21 @@ export default function (modules, endpoint, ...args) {
     callback = args[1];
   }
 
+  performWork(modules, endpoint, incomingParams, (isError, status, exception, response) => {
+    if (isError) {
+      if (callback) callback(status);
+      else if (promiseComponent) promiseComponent.reject(exception);
+      return;
+    }
+
+    if (callback) {
+      callback(status, response);
+    } else if (promiseComponent) {
+      promiseComponent.fulfill(response);
+    }
+  });
+
+  /*
   let validationResult = endpoint.validateParams(modules, incomingParams);
 
   if (validationResult) {
@@ -106,13 +131,6 @@ export default function (modules, endpoint, ...args) {
     outgoingParams.signature = signature;
   }
 
-  let promiseComponent = null;
-
-  // bridge in Promise support.
-  if (typeof Promise !== 'undefined' && !callback) {
-    promiseComponent = utils.createPromise();
-  }
-
   let onResponse = (status: StatusAnnouncement, payload: Object) => {
     if (status.error) {
       if (callback) {
@@ -146,4 +164,5 @@ export default function (modules, endpoint, ...args) {
   if (promiseComponent) {
     return promiseComponent.promise;
   }
+  */
 }
