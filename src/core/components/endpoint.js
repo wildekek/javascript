@@ -92,7 +92,8 @@ export default function (modules, endpoint, ...args) {
   let callInstance;
   let networkingParams = { url,
     operation: endpoint.getOperation(),
-    timeout: endpoint.getRequestTimeout(modules)
+    timeout: endpoint.getRequestTimeout(modules),
+    isDebug: this._config.logVerbosity
   };
 
   outgoingParams.uuid = config.UUID;

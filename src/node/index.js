@@ -3,6 +3,8 @@
 import PubNubCore from '../core/pubnub-common';
 import { InternalSetupStruct } from '../core/flow_interfaces';
 
+import superagentTransport from '../core/components/http_modules/fetch';
+
 let Database = class {
 
   storage: Object;
@@ -24,6 +26,7 @@ export default class extends PubNubCore {
 
   constructor(setup: InternalSetupStruct) {
     setup.db = new Database();
+    setup.networkTransport = superagentTransport;
     setup.sdkFamily = 'Nodejs';
     super(setup);
   }

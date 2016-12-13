@@ -1,13 +1,7 @@
-/* @flow */
-/* global window */
 
-import superagent from 'superagent';
 
 import Crypto from './cryptography/index';
 import Config from './config';
-import categoryConstants from '../constants/categories';
-
-import { EndpointDefinition, StatusAnnouncement } from '../flow_interfaces';
 
 type NetworkingModules = {
   crypto: Crypto,
@@ -78,84 +72,14 @@ export default class {
     return this._standardOrigin;
   }
 
-  POST(params : Object, body: string, endpoint: EndpointDefinition, callback: Function): superagent {
-    let superagentConstruct = superagent
-      .post(this.getStandardOrigin() + endpoint.url)
-      .query(params)
-      .send(body);
-    return this._abstractedXDR(superagentConstruct, endpoint, callback);
+  GET(queryParams, endpoint, callback) {
+    endpoint.origin = this.getStandardOrigin();
+    this._config._networkTransport.GET({ queryParams, endpoint, callback });
   }
 
-  GET(params : Object, endpoint: EndpointDefinition, callback: Function): superagent {
-    let superagentConstruct = superagent
-      .get(this.getStandardOrigin() + endpoint.url)
-      .query(params);
-    return this._abstractedXDR(superagentConstruct, endpoint, callback);
+  POST(queryParams, body, endpoint, callback) {
+    endpoint.origin = this.getStandardOrigin();
+    this._config._networkTransport.POST({ queryParams, body, endpoint, callback });
   }
 
-  _abstractedXDR(superagentConstruct: superagent, endpoint: EndpointDefinition, callback: Function): Object {
-    // attach a logger
-    if (this._config.logVerbosity) {
-      superagentConstruct = superagentConstruct.use(this._attachSuperagentLogger);
-    }
-
-    return superagentConstruct
-      .timeout(endpoint.timeout)
-      .end((err, resp) => {
-        let status: StatusAnnouncement = {};
-        status.error = err !== null;
-        status.operation = endpoint.operation;
-
-        if (resp && resp.status) {
-          status.statusCode = resp.status;
-        }
-
-        if (err) {
-          status.errorData = err;
-          status.category = this._detectErrorCategory(err);
-          return callback(status, null);
-        }
-
-        let parsedResponse = JSON.parse(resp.text);
-        return callback(status, parsedResponse);
-      });
-  }
-
-  _detectErrorCategory(err: Object): string {
-    if (err.code === 'ENOTFOUND') return categoryConstants.PNNetworkIssuesCategory;
-    if (err.status === 0 || (err.hasOwnProperty('status') && typeof err.status === 'undefined')) return categoryConstants.PNNetworkIssuesCategory;
-    if (err.timeout) return categoryConstants.PNTimeoutCategory;
-
-    if (err.response) {
-      if (err.response.badRequest) return categoryConstants.PNBadRequestCategory;
-      if (err.response.forbidden) return categoryConstants.PNAccessDeniedCategory;
-    }
-
-    return categoryConstants.PNUnknownCategory;
-  }
-
-  _attachSuperagentLogger(req: Object) {
-    let _pickLogger = () => {
-      if (console && console.log) return console; // eslint-disable-line no-console
-      if (window && window.console && window.console.log) return window.console;
-      return console;
-    };
-
-    let start = new Date().getTime();
-    let timestamp = new Date().toISOString();
-    let logger = _pickLogger();
-    logger.log('<<<<<');                                               // eslint-disable-line no-console
-    logger.log('[' + timestamp + ']', '\n', req.url, '\n', req.qs);    // eslint-disable-line no-console
-    logger.log('-----');                                               // eslint-disable-line no-console
-
-    req.on('response', (res) => {
-      let now = new Date().getTime();
-      let elapsed = now - start;
-      let timestampDone = new Date().toISOString();
-
-      logger.log('>>>>>>');                                                                                  // eslint-disable-line no-console
-      logger.log('[' + timestampDone + ' / ' + elapsed + ']', '\n', req.url, '\n', req.qs, '\n', res.text);  // eslint-disable-line no-console
-      logger.log('-----');                                                                                   // eslint-disable-line no-console
-    });
-  }
 }

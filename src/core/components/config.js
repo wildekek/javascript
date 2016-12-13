@@ -4,14 +4,10 @@
 import uuidGenerator from 'uuid';
 import { InternalSetupStruct, DatabaseInterface } from '../flow_interfaces';
 
-type ConfigConstructArgs = {
-  setup: InternalSetupStruct,
-  db: DatabaseInterface
-}
-
 export default class {
 
   _db: DatabaseInterface;
+  _networkTransport: Object;
 
   subscribeKey: string;
   publishKey: string;
@@ -101,8 +97,10 @@ export default class {
   restore: boolean;
 
 
-  constructor({ setup, db } : ConfigConstructArgs) {
-    this._db = db;
+  constructor(setup : InternalSetupStruct) {
+    this._db = setup.db;
+
+    this._networkTransport = setup.networkTransport;
 
     this.instanceId = uuidGenerator.v4();
     this.secretKey = setup.secretKey;

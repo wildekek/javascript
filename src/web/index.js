@@ -2,6 +2,7 @@
 /* global localStorage, navigator, window */
 
 import PubNubCore from '../core/pubnub-common';
+import superagentTransport from '../core/components/http_modules/superagent';
 import { InternalSetupStruct } from '../core/flow_interfaces';
 
 /**
@@ -40,6 +41,7 @@ export default class extends PubNubCore {
 
   constructor(setup: InternalSetupStruct) {
     setup.db = db;
+    setup.networkTransport = superagentTransport;
     setup.sendBeacon = sendBeacon;
     setup.sdkFamily = 'Web';
 

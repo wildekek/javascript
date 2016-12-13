@@ -102,9 +102,9 @@ export default class {
   //
 
   constructor(setup: InternalSetupStruct) {
-    let { sendBeacon, db } = setup;
+    let { sendBeacon } = setup;
 
-    const config = this._config = new Config({ setup, db });
+    const config = this._config = new Config(setup);
     const crypto = new Crypto({ config });
     const networking = new Networking({ config, crypto, sendBeacon });
 
