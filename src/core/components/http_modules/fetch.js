@@ -30,10 +30,10 @@ const _abstractedXDR = ({ fetchUrl, method, endpoint, callback, body}): Object =
 
   nodeFetch(fetchUrl, fetchConfig)
     .then((response) => {
-      console.log(response);
+      console.log('response', response);
     })
     .catch((error) => {
-      console.log(error);
+      console.log('error', error);
     });
 
   // attach a logger
@@ -76,13 +76,13 @@ const createURL = (origin, path, queryParams) => {
 };
 
 export default {
-  POST: ({ queryParams, body, endpoint, callback }): nodeFetch => {
+  POST: ({ queryParams, body, endpoint }, callback): nodeFetch => {
     const fetchUrl = createURL(endpoint.origin, endpoint.url, queryParams);
-    return _abstractedXDR({ fetchUrl, method: 'GET', endpoint, callback, body });
+    return _abstractedXDR({ fetchUrl, method: 'POST', endpoint, callback, body });
   },
 
-  GET: ({ queryParams, endpoint, callback }): nodeFetch => {
+  GET: ({ queryParams, endpoint }, callback): nodeFetch => {
     const fetchUrl = createURL(endpoint.origin, endpoint.url, queryParams);
-    return _abstractedXDR({ fetchUrl, method: 'POST', endpoint, callback });
+    return _abstractedXDR({ fetchUrl, method: 'GET', endpoint, callback });
   }
 };
