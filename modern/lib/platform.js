@@ -3,6 +3,7 @@
 var pubNubCore = require('../../core/src/pubnub-common.js');
 var crypto_obj = require('../../core/umd_vendor/crypto-obj.js');
 var CryptoJS = require('../../core/umd_vendor/hmac-sha256.js');
+var webUtils = require('../../core/src/web_utils.js');
 var WS = require('../../core/umd_vendor/websocket');
 
 
@@ -11,6 +12,9 @@ var WS = require('../../core/umd_vendor/websocket');
  */
 var db = (function () {
   var ls;
+
+  var cookieExpirationDate = new Date();
+  cookieExpirationDate.setFullYear(cookieExpirationDate.getFullYear() + 1);
 
   try {
     ls = typeof localStorage !== 'undefined' && localStorage;
@@ -35,10 +39,7 @@ var db = (function () {
     get: function (key) {
       try {
         if (ls) return ls.getItem(key);
-        if (document.cookie.indexOf(key) === -1) return null;
-        return ((document.cookie || '').match(
-            RegExp(key + '=([^;]+)')
-          ) || [])[1] || null;
+        return webUtils.getCookie(key);
       } catch (e) {
         return;
       }
@@ -46,8 +47,7 @@ var db = (function () {
     set: function (key, value) {
       try {
         if (ls) return ls.setItem(key, value) && 0;
-        document.cookie = key + '=' + value +
-          '; expires=Thu, 1 Aug 2030 20:00:00 UTC; path=/';
+        webUtils.setCookie(key, value, cookieExpirationDate);
       } catch (e) {
         return;
       }

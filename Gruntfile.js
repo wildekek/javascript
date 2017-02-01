@@ -16,7 +16,7 @@ function registerWebpackBuilding(grunt) {
     grunt.registerTask('compile:' + platform, actions);
   });
 
-  compileTargets = compileTargets.concat('copy', 'eslint', 'flow');
+  compileTargets = compileTargets.concat('copy', 'eslint');
 
   grunt.registerTask('_compile', compileTargets);
 }
@@ -149,27 +149,6 @@ module.exports = function (grunt) {
         }
       }
     },
-    flow: {
-      app: {
-        src: '.',
-        options: {
-          background: false
-        }
-      }
-    },
-    babel: {
-      core: {
-        files: [
-          {
-            expand: true,
-            cwd: 'core/src/',
-            src: ['**/*.js'],
-            dest: 'core/lib/',
-            ext: '.js'
-          }
-        ]
-      }
-    },
     eslint: {
       target: [
         'node.js/*.js',
@@ -200,7 +179,6 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-mocha-istanbul');
   grunt.loadNpmTasks('grunt-karma');
-  grunt.loadNpmTasks('grunt-flow');
 
   grunt.registerTask('lockdown', ['env:lockdown']);
   grunt.registerTask('record', ['env:record']);

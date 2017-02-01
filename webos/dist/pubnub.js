@@ -60,7 +60,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	var pubNubCore = __webpack_require__(1);
 	var crypto_obj = __webpack_require__(5);
 	var CryptoJS = __webpack_require__(6);
-	var WS = __webpack_require__(7);
+	var webUtils = __webpack_require__(7);
+	var WS = __webpack_require__(8);
 
 
 	/**
@@ -68,6 +69,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	 */
 	var db = (function () {
 	  var ls;
+
+	  var cookieExpirationDate = new Date();
+	  cookieExpirationDate.setFullYear(cookieExpirationDate.getFullYear() + 1);
 
 	  try {
 	    ls = typeof localStorage !== 'undefined' && localStorage;
@@ -92,10 +96,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    get: function (key) {
 	      try {
 	        if (ls) return ls.getItem(key);
-	        if (document.cookie.indexOf(key) === -1) return null;
-	        return ((document.cookie || '').match(
-	            RegExp(key + '=([^;]+)')
-	          ) || [])[1] || null;
+	        return webUtils.getCookie(key);
 	      } catch (e) {
 	        return;
 	      }
@@ -103,8 +104,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    set: function (key, value) {
 	      try {
 	        if (ls) return ls.setItem(key, value) && 0;
-	        document.cookie = key + '=' + value +
-	          '; expires=Thu, 1 Aug 2030 20:00:00 UTC; path=/';
+	        webUtils.setCookie(key, value, cookieExpirationDate);
 	      } catch (e) {
 	        return;
 	      }
@@ -2945,6 +2945,34 @@ return /******/ (function(modules) { // webpackBootstrap
 
 /***/ },
 /* 7 */
+/***/ function(module, exports) {
+
+	
+
+	module.exports = {
+	  getCookie: function (key) {
+	    if (document.cookie.indexOf(key) === -1) return null;
+	    return ((document.cookie || '').match(
+	        RegExp(key + '=([^;]+)')
+	      ) || [])[1] || null;
+	  },
+	  setCookie: function (key, value, date) {
+	    var cookieContents = key + '=' + value;
+	    cookieContents += '; expires=' + date.toUTCString();
+	    cookieContents += '; path=/';
+
+	    if (location && location.protocol && location.protocol === 'https:') {
+	      cookieContents += '; Secure';
+	    }
+
+	    document.cookie = cookieContents;
+	  }
+
+	};
+
+
+/***/ },
+/* 8 */
 /***/ function(module, exports) {
 
 	// ---------------------------------------------------------------------------

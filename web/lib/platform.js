@@ -6,6 +6,7 @@ require('imports?this=>window!../../core/polyfill/json.js');
 var crypto_obj = require('../../core/umd_vendor/crypto-obj.js');
 var CryptoJS = require('../../core/umd_vendor/hmac-sha256.js');
 var pubNubCore = require('../../core/src/pubnub-common.js');
+var webUtils = require('../../core/src/web_utils.js');
 var WS = require('../../core/umd_vendor/websocket');
 
 /**
@@ -24,25 +25,19 @@ console.log || (console.log = console.error = ((window.opera || {}).postError ||
 var db = (function () {
   var store = {};
   var ls = false;
+
+  var cookieExpirationDate = new Date();
+  cookieExpirationDate.setFullYear(cookieExpirationDate.getFullYear() + 1);
+
   try {
     ls = window['localStorage'];
   } catch (e) {
     return;
   }
-  var cookieGet = function (key) {
-    if (document.cookie.indexOf(key) === -1) return null;
-    return ((document.cookie || '').match(
-        RegExp(key + '=([^;]+)')
-      ) || [])[1] || null;
-  };
-  var cookieSet = function (key, value) {
-    document.cookie = key + '=' + value +
-      '; expires=Thu, 1 Aug ' + (new Date().getFullYear() + 1) + ' 20:00:00 UTC; path=/';
-  };
   var cookieTest = (function () {
     try {
-      cookieSet('pnctest', '1');
-      return cookieGet('pnctest') === '1';
+      webUtils.cookieSet('pnctest', '1', cookieExpirationDate);
+      return webUtils.cookieGet('pnctest') === '1';
     } catch (e) {
       return false;
     }
@@ -51,7 +46,7 @@ var db = (function () {
     get: function (key) {
       try {
         if (ls) return ls.getItem(key);
-        if (cookieTest) return cookieGet(key);
+        if (cookieTest) return webUtils.cookieGet(key);
         return store[key];
       } catch (e) {
         return store[key];
@@ -60,7 +55,7 @@ var db = (function () {
     set: function (key, value) {
       try {
         if (ls) return ls.setItem(key, value) && 0;
-        if (cookieTest) cookieSet(key, value);
+        if (cookieTest) webUtils.setCookie(key, value, cookieExpirationDate);
         store[key] = value;
       } catch (e) {
         store[key] = value;
