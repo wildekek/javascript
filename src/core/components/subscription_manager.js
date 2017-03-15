@@ -298,7 +298,8 @@ export default class {
       connectedAnnounce.operation = status.operation;
       connectedAnnounce.affectedChannels = this._pendingChannelSubscriptions;
       connectedAnnounce.affectedChannelGroups = this._pendingChannelGroupSubscriptions;
-      connectedAnnounce.currentTimetoken = this._timetoken;
+      connectedAnnounce.lastTimetoken = this._timetoken;
+      connectedAnnounce.curentTimetoken = payload.metadata.timetoken;
       this._subscriptionStatusAnnounced = true;
       this._listenerManager.announceStatus(connectedAnnounce);
 
