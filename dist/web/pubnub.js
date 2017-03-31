@@ -297,6 +297,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	      listenerManager: listenerManager
 	    });
 
+	    this.subscriptionManager = subscriptionManager;
+
 	    this.addListener = listenerManager.addListener.bind(listenerManager);
 	    this.removeListener = listenerManager.removeListener.bind(listenerManager);
 	    this.removeAllListeners = listenerManager.removeAllListeners.bind(listenerManager);
@@ -370,6 +372,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	    key: 'getVersion',
 	    value: function getVersion() {
 	      return this._config.getVersion();
+	    }
+	  }, {
+	    key: 'getTimetokens',
+	    value: function getTimetokens() {
+	      return {
+	        currentTimetoken: this.subscriptionManager._currentTimetoken,
+	        lastTimetoken: this.SubscriptionManager._lastTimetoken
+	      };
 	    }
 	  }, {
 	    key: '__networkDownDetected',

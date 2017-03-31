@@ -130,6 +130,8 @@ export default class {
       listenerManager
     });
 
+    this.subscriptionManager = subscriptionManager;
+
     this.addListener = listenerManager.addListener.bind(listenerManager);
     this.removeListener = listenerManager.removeListener.bind(listenerManager);
     this.removeAllListeners = listenerManager.removeAllListeners.bind(listenerManager);
@@ -208,6 +210,13 @@ export default class {
 
   getVersion(): string {
     return this._config.getVersion();
+  }
+
+  getTimetokens() {
+    return {
+      currentTimetoken: this.subscriptionManager._currentTimetoken,
+      lastTimetoken: this.SubscriptionManager._lastTimetoken
+    };
   }
 
   // network hooks to indicate network changes
