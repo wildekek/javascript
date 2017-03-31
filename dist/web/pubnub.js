@@ -1873,6 +1873,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	          _announce.subscribedChannel = subscriptionMatch != null ? subscriptionMatch : channel;
 
 
+	          _announce.subscribeTimetoken = _this5._currentTimetoken;
+	          _announce.lastTimetoken = _this5._lastTimetoken;
+
 	          _announce.channel = channel;
 	          _announce.subscription = subscriptionMatch;
 	          _announce.timetoken = publishMetaData.publishTimetoken;

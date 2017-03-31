@@ -390,6 +390,9 @@ export default class {
         announce.subscribedChannel = subscriptionMatch != null ? subscriptionMatch : channel;
         // <-- deprecated
 
+        announce.subscribeTimetoken = this._currentTimetoken;
+        announce.lastTimetoken = this._lastTimetoken;
+
         announce.channel = channel;
         announce.subscription = subscriptionMatch;
         announce.timetoken = publishMetaData.publishTimetoken;
