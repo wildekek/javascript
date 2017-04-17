@@ -37,4 +37,10 @@ describe('#core / mounting point', () => {
     let pn = new PubNub({});
     assert.deepEqual(pn.decrypt('TejX6F2JNqH/gIiGHWN4Cw==', 'customKey'), { hi: 'there' });
   });
+
+  it.only('throws exception if the decryption failed', () => {
+    let pn = new PubNub({ cipherKey: 'customKey' });
+    pn.decrypt('TejX6F2JNqH/gIiGHWN4Cw==');
+  });
+
 });

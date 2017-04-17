@@ -97,6 +97,8 @@ export default class {
     return (options.mode === 'cbc') ? CryptoJS.enc.Utf8.parse(this._iv) : null;
   }
 
+
+
   encrypt(data: string, customCipherKey: ?string, options: ?Object): Object | string | null {
     if (!customCipherKey && !this._config.cipherKey) return data;
     options = this._parseOptions(options);
@@ -114,13 +116,25 @@ export default class {
     let iv = this._getIV(options);
     let mode = this._getMode(options);
     let cipherKey = this._getPaddedKey(customCipherKey || this._config.cipherKey, options);
+
+    let ciphertext = null;
+    let plaintext = null;
+
     try {
-      let ciphertext = CryptoJS.enc.Base64.parse(data);
-      let plainJSON = CryptoJS.AES.decrypt({ ciphertext }, cipherKey, { iv, mode }).toString(CryptoJS.enc.Utf8);
-      let plaintext = JSON.parse(plainJSON);
-      return plaintext;
+      ciphertext = CryptoJS.enc.Base64.parse(data);
+      plaintext = CryptoJS.AES.decrypt({ ciphertext }, cipherKey, { iv, mode }).toString(CryptoJS.enc.Utf8);
     } catch (e) {
-      return null;
+      console.log({ op: 'decrypt', e, plaintext });
+      throw e;
+    }
+
+    console.log({ ciphertext, plaintext });
+
+    try {
+      return JSON.parse(plaintext);
+    } catch (e) {
+      console.log({ op: 'parse', e, plaintext });
+      throw e;
     }
   }
 
