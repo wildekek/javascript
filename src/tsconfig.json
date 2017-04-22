@@ -1,0 +1,20 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "baseUrl": ".",
+    "outDir": "../lib",
+    "moduleResolution": "node",
+    "declaration": true,
+    "sourceMap": true,
+    "removeComments": true,
+    "allowJs":true
+  },
+  "exclude": [
+    "../lib",
+    "./node_modules",
+    "./gulpfile.babel.js",
+    "./webpack.config.js"
+  ]
+}
