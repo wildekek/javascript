@@ -1,11 +1,9 @@
- /* @flow */
-
 import PubNubCore from '../core/pubnub-common';
 import Networking from '../networking';
 import Database from '../db/common';
 import { get, post } from '../networking/modules/web-node';
 import { keepAlive, proxy } from '../networking/modules/node';
-import { InternalSetupStruct } from '../core/flow_interfaces';
+import { InternalSetupStruct } from '../core/interfaces';
 
 export default class extends PubNubCore {
   constructor(setup: InternalSetupStruct) {

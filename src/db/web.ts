@@ -1,4 +1,3 @@
-/* @flow */
 /* global localStorage */
 
 export default {

@@ -1,11 +1,10 @@
-/* @flow */
 /* global navigator, window */
 
 import PubNubCore from '../core/pubnub-common';
 import Networking from '../networking';
 import db from '../db/web';
 import { get, post } from '../networking/modules/web-node';
-import { InternalSetupStruct } from '../core/flow_interfaces';
+import { InternalSetupStruct } from '../core/interfaces';
 
 function sendBeacon(url: string) {
   if (navigator && navigator.sendBeacon) {

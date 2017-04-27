@@ -1,13 +1,12 @@
-/* @flow */
 /* global window */
 
 import Config from '../core/components/config';
 import categoryConstants from '../core/constants/categories';
 
-import { EndpointDefinition, NetworkingModules } from '../core/flow_interfaces';
+import { EndpointDefinition, NetworkingModules } from '../core/interfaces';
 
 export default class {
-  _modules: NetworkingModules;
+  _modules: any;
   _config: Config;
 
   _maxSubDomain: number;
@@ -63,7 +62,7 @@ export default class {
 
   // origin operations
   shiftStandardOrigin(failover: boolean = false): string {
-    this._standardOrigin = this.nextOrigin(failover);
+    this._standardOrigin = this.nextOrigin();
 
     return this._standardOrigin;
   }
@@ -80,7 +79,7 @@ export default class {
     return this._modules.get(params, endpoint, callback);
   }
 
-  _detectErrorCategory(err: Object): string {
+  _detectErrorCategory(err: any): string {
     if (err.code === 'ENOTFOUND') return categoryConstants.PNNetworkIssuesCategory;
     if (err.code === 'ECONNREFUSED') return categoryConstants.PNNetworkIssuesCategory;
     if (err.code === 'ECONNRESET') return categoryConstants.PNNetworkIssuesCategory;

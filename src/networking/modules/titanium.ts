@@ -1,7 +1,6 @@
-/* @flow */
 /* global Ti, XMLHttpRequest, window, console */
 
-import { EndpointDefinition, StatusAnnouncement } from '../../core/flow_interfaces';
+import { EndpointDefinition, StatusAnnouncement } from '../../core/interfaces';
 import { buildUrl } from '../utils';
 
 declare var Ti: any;
@@ -44,7 +43,7 @@ function keepAlive(xhr: any): void {
 }
 
 function xdr(xhr: any, method: string, url: string, params: Object, body: Object, endpoint: EndpointDefinition, callback: Function): void {
-  let status: StatusAnnouncement = {};
+  let status = new StatusAnnouncement();
   status.operation = endpoint.operation;
 
   xhr.open(method, buildUrl(url, params), true);

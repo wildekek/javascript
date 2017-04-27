@@ -1,7 +1,6 @@
-/* @flow */
 /* global fetch, XMLHttpRequest, window, console */
 
-import { EndpointDefinition, StatusAnnouncement } from '../../core/flow_interfaces';
+import { EndpointDefinition, StatusAnnouncement } from '../../core/interfaces';
 import { buildUrl } from '../utils';
 
 declare var fetch: any;
@@ -29,7 +28,7 @@ function log(url, qs, res) {
 }
 
 function xdr(method: string, url: string, params: Object, body: string, endpoint: EndpointDefinition, callback: Function): void {
-  let status: StatusAnnouncement = {};
+  let status = new StatusAnnouncement();
   status.operation = endpoint.operation;
 
   fetch(buildUrl(url, params), { method, body })

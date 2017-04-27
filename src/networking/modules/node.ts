@@ -1,4 +1,3 @@
-/* @flow */
 /* global window */
 
 import superagent from 'superagent';

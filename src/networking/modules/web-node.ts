@@ -1,10 +1,9 @@
-/* @flow */
 /* global window */
 
 import superagent from 'superagent';
-import { EndpointDefinition, StatusAnnouncement } from '../../core/flow_interfaces';
+import { EndpointDefinition, StatusAnnouncement } from '../../core/interfaces';
 
-function log(req: Object) {
+function log(req: any) {
   let _pickLogger = () => {
     if (console && console.log) return console; // eslint-disable-line no-console
     if (window && window.console && window.console.log) return window.console;
@@ -45,7 +44,7 @@ function xdr(superagentConstruct: superagent, endpoint: EndpointDefinition, call
   return superagentConstruct
       .timeout(endpoint.timeout)
       .end((err, resp) => {
-        let status: StatusAnnouncement = {};
+        let status = new StatusAnnouncement();
         status.error = err !== null;
         status.operation = endpoint.operation;
 
