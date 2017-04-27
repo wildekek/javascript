@@ -6,25 +6,25 @@ import * as utils from '../utils';
 import { MessageAnnouncement, SubscribeEnvelope, StatusAnnouncement, PresenceAnnouncement } from '../interfaces';
 import categoryConstants from '../constants/categories';
 
-interface SubscribeArgs {
+export interface SubscribeArgs {
   channels: Array<string>;
   channelGroups: Array<string>;
   withPresence?: boolean;
   timetoken?: number;
 }
 
-interface UnsubscribeArgs {
+export interface UnsubscribeArgs {
   channels: Array<string>;
   channelGroups: Array<string>;
 }
 
-interface StateArgs {
+export interface StateArgs {
   channels: Array<string>;
   channelGroups: Array<string>;
   state: Object;
 }
 
-interface SubscriptionManagerConsturct {
+export interface SubscriptionManagerConsturct {
     leaveEndpoint: Function;
     subscribeEndpoint: Function;
     timeEndpoint: Function;

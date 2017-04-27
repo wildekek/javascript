@@ -24,6 +24,7 @@ export interface NetworkingModules {
   sendBeacon?: Function;
   get: Function;
   post: Function;
+  proxy?: Function;
 }
 
 export interface ConfigConstructArgs {
@@ -55,6 +56,8 @@ export interface InternalSetupStruct {
 
   db: DatabaseInterface; // get / set implementation to store data
   networking: any; // component of networking to use
+  sdkFamily: string;
+  listenToBrowserNetworkEvents?: boolean // option only available for web distribution
 }
 
 export interface DatabaseInterface {
@@ -71,10 +74,11 @@ export interface SupportedParams {
   uuid: EndpointKeyDefinition;
 }
 
-export interface endpointDefinition {
+export interface EndpointDefinition {
   params: SupportedParams;
   timeout: number;
   url: string;
+  operation?: string;
 }
 
 export interface StateChangeAnnouncement {
