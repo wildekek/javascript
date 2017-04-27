@@ -1,7 +1,7 @@
 import Config from '../config';
-import * as CryptoJS from './hmac-sha256';
+import { HmacSHA256, enc, SHA256, mode, AES } from './hmac-sha256';
 
-interface CryptoConstruct {
+export interface CryptoConstruct {
   config: Config,
 }
 
@@ -31,12 +31,12 @@ export default class {
   }
 
   HMACSHA256(data: string): string {
-    let hash = CryptoJS.HmacSHA256(data, this._config.secretKey);
-    return hash.toString(CryptoJS.enc.Base64);
+    let hash = HmacSHA256(data, this._config.secretKey);
+    return hash.toString(enc.Base64);
   }
 
   SHA256(s: string): string {
-    return CryptoJS.SHA256(s).toString(CryptoJS.enc.Hex);
+    return SHA256(s).toString(enc.Hex);
   }
 
   _parseOptions(incomingOptions?: any): Object {
@@ -65,9 +65,9 @@ export default class {
 
   _decodeKey(key: string, options: any): string {
     if (options.keyEncoding === 'base64') {
-      return CryptoJS.enc.Base64.parse(key);
+      return enc.Base64.parse(key);
     } else if (options.keyEncoding === 'hex') {
-      return CryptoJS.enc.Hex.parse(key);
+      return enc.Hex.parse(key);
     } else {
       return key;
     }
@@ -76,7 +76,7 @@ export default class {
   _getPaddedKey(key: string, options: any): string {
     key = this._decodeKey(key, options);
     if (options.encryptKey) {
-      return CryptoJS.enc.Utf8.parse(this.SHA256(key).slice(0, 32));
+      return enc.Utf8.parse(this.SHA256(key).slice(0, 32));
     } else {
       return key;
     }
@@ -84,14 +84,14 @@ export default class {
 
   _getMode(options: any): string {
     if (options.mode === 'ecb') {
-      return CryptoJS.mode.ECB;
+      return mode.ECB;
     } else {
-      return CryptoJS.mode.CBC;
+      return mode.CBC;
     }
   }
 
   _getIV(options: any): string | null {
-    return (options.mode === 'cbc') ? CryptoJS.enc.Utf8.parse(this._iv) : null;
+    return (options.mode === 'cbc') ? enc.Utf8.parse(this._iv) : null;
   }
 
   encrypt(data: string, customCipherKey?: string, options?: Object): Object | string | null {
@@ -116,8 +116,8 @@ export default class {
     let iv = this._getIV(options);
     let mode = this._getMode(options);
     let cipherKey = this._getPaddedKey(customCipherKey || this._config.cipherKey, options);
-    let encryptedHexArray = CryptoJS.AES.encrypt(data, cipherKey, { iv, mode }).ciphertext;
-    let base64Encrypted = encryptedHexArray.toString(CryptoJS.enc.Base64);
+    let encryptedHexArray = AES.encrypt(data, cipherKey, { iv, mode }).ciphertext;
+    let base64Encrypted = encryptedHexArray.toString(enc.Base64);
     return base64Encrypted || data;
   }
 
@@ -128,8 +128,8 @@ export default class {
     let mode = this._getMode(options);
     let cipherKey = this._getPaddedKey(customCipherKey || this._config.cipherKey, options);
     try {
-      let ciphertext = CryptoJS.enc.Base64.parse(data);
-      let plainJSON = CryptoJS.AES.decrypt({ ciphertext }, cipherKey, { iv, mode }).toString(CryptoJS.enc.Utf8);
+      let ciphertext = enc.Base64.parse(data);
+      let plainJSON = AES.decrypt({ ciphertext }, cipherKey, { iv, mode }).toString(enc.Utf8);
       let plaintext = JSON.parse(plainJSON);
       return plaintext;
     } catch (e) {
