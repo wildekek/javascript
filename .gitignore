@@ -11,3 +11,5 @@ coverage/
 *.iml
 dist/web/stats.json
 dist/titanium/stats.json
+src/**/*.js
+!/src/core/components/cryptography/hmac-sha256.js

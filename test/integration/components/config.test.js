@@ -47,7 +47,7 @@ describe('components/config', () => {
       let networking = new Networking({ keepAlive, get, post, proxy });
       let storageParams = { networking: networking };
       const pubnub = new PubNub(storageParams);
-      assert.equal(pubnub.getUUID(), 'pn-uuidCustom');
+      assert.ok(pubnub.getUUID().startsWith('pn-'));
     });
 
     it('checks UUID from database if db object is provided', () => {
@@ -59,7 +59,7 @@ describe('components/config', () => {
       const pubnub = new PubNub(storageParams);
       assert.equal(dbInstance.get.callCount, 1);
       assert.equal(dbInstance.get.getCall(0).args[0], 'mySubKeyuuid');
-      assert.equal(pubnub.getUUID(), 'pn-uuidCustom');
+      assert.ok(pubnub.getUUID().startsWith('pn-'));
     });
 
     it('uses UUID from database if db object is provided', () => {
