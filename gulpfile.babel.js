@@ -40,7 +40,7 @@ return tsResult.dts.pipe(gulp.dest('lib'));
 });
 
 gulp.task('babel_transpile', ['ts_transpile'], () => {
-  return gulp.src('src/**/*.ts')
+  return gulp.src('src/**/*.js')
     .pipe(sourcemaps.init())
     .pipe(babel())
     .pipe(sourcemaps.write('.'))
@@ -157,5 +157,5 @@ gulp.task('webpack', (done) => {
 });
 
 gulp.task('compile', (done) => {
-  runSequence('clean', 'ts_transpile', 'ts_declarations', 'babel_transpile', 'webpack', 'uglify_web', 'uglify_titanium', 'create_version', 'create_version_gzip', done);
+  runSequence('clean', 'babel_transpile', 'ts_declarations', 'webpack', 'uglify_web', 'uglify_titanium', 'create_version', 'create_version_gzip', done);
 });
