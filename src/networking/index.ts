@@ -71,15 +71,15 @@ export default class {
     return this._standardOrigin;
   }
 
-  POST(params: Object, body: string, endpoint: EndpointDefinition, callback: Function) {
+  post(params: Object, body: string, endpoint: EndpointDefinition, callback: Function) {
     return this._modules.post(params, body, endpoint, callback);
   }
 
-  GET(params: Object, endpoint: EndpointDefinition, callback: Function) {
+  get(params: Object, endpoint: EndpointDefinition, callback: Function) {
     return this._modules.get(params, endpoint, callback);
   }
 
-  _detectErrorCategory(err: any): string {
+  private detectErrorCategory(err: any): string {
     if (err.code === 'ENOTFOUND') return categoryConstants.PNNetworkIssuesCategory;
     if (err.code === 'ECONNREFUSED') return categoryConstants.PNNetworkIssuesCategory;
     if (err.code === 'ECONNRESET') return categoryConstants.PNNetworkIssuesCategory;

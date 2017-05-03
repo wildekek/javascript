@@ -1,4 +1,4 @@
-export function objectToList(o: Object): Array<any> {
+export function objectToList(o: Object): any[] {
   let l = [];
   Object.keys(o).forEach(key => l.push(key));
   return l;
@@ -8,7 +8,7 @@ export function encodeString(input: string): string {
   return encodeURIComponent(input).replace(/[!~*'()]/g, x => `%${x.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
-export function objectToListSorted(o: Object): Array<any> {
+export function objectToListSorted(o: Object): any[] {
   return objectToList(o).sort();
 }
 

@@ -15,14 +15,14 @@ export default class {
   }
 
   startPolling() {
-    this._timeTimer = setInterval(this._performTimeLoop.bind(this), 3000);
+    this._timeTimer = setInterval(this.performTimeLoop.bind(this), 3000);
   }
 
   stopPolling() {
     clearInterval(this._timeTimer);
   }
 
-  _performTimeLoop() {
+  private performTimeLoop() {
     this._timeEndpoint((status: StatusAnnouncement) => {
       if (!status.error) {
         clearInterval(this._timeTimer);

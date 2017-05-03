@@ -33,6 +33,6 @@ export function prepareParams(modules: ModulesInject, incomingParams: ListChanne
   return { type: pushGateway };
 }
 
-export function handleResponse(modules: ModulesInject, serverResponse: Array<string>): ListChannelsResponse {
+export function handleResponse(modules: ModulesInject, serverResponse: string[]): ListChannelsResponse {
   return { channels: serverResponse };
 }

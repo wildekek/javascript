@@ -53,7 +53,7 @@ function xdr(method: string, url: string, params: Object, body: string, endpoint
     .catch((e) => {
       status.error = true;
       status.errorData = e.error;
-      status.category = this._detectErrorCategory(e.error);
+      status.category = this.detectErrorCategory(e.error);
       callback(status, null);
     });
 }

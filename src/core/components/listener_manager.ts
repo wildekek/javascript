@@ -3,7 +3,7 @@ import categoryConstants from '../constants/categories';
 
 export default class {
 
-  _listeners: Array<CallbackStruct>;
+  _listeners: CallbackStruct[];
 
   constructor() {
     this._listeners = [];

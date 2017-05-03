@@ -52,7 +52,7 @@ function signRequest(modules, url, outgoingParams) {
   let signInput = `${config.subscribeKey}\n${config.publishKey}\n${url}\n`;
   signInput += utils.signPamFromParams(outgoingParams);
 
-  let signature = crypto.HMACSHA256(signInput);
+  let signature = crypto.hmacsha256(signInput);
   signature = signature.replace(/\+/g, '-');
   signature = signature.replace(/\//g, '_');
 
@@ -137,9 +137,9 @@ export default function (modules, endpoint, ...args) {
 
   if (endpoint.usePost && endpoint.usePost(modules, incomingParams)) {
     let payload = endpoint.postPayload(modules, incomingParams);
-    callInstance = networking.POST(outgoingParams, payload, networkingParams, onResponse);
+    callInstance = networking.post(outgoingParams, payload, networkingParams, onResponse);
   } else {
-    callInstance = networking.GET(outgoingParams, networkingParams, onResponse);
+    callInstance = networking.get(outgoingParams, networkingParams, onResponse);
   }
 
   if (endpoint.getOperation() === operationConstants.PNSubscribeOperation) {

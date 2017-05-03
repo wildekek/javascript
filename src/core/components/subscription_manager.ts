@@ -7,20 +7,20 @@ import { MessageAnnouncement, SubscribeEnvelope, StatusAnnouncement, PresenceAnn
 import categoryConstants from '../constants/categories';
 
 export interface SubscribeArgs {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
   withPresence?: boolean;
   timetoken?: number;
 }
 
 export interface UnsubscribeArgs {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
 }
 
 export interface StateArgs {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
   state: Object;
 }
 
@@ -65,8 +65,8 @@ export default class {
   _subscriptionStatusAnnounced: boolean;
 
   // store pending connection elements
-  _pendingChannelSubscriptions: Array<string>;
-  _pendingChannelGroupSubscriptions: Array<string>;
+  _pendingChannelSubscriptions: string[];
+  _pendingChannelGroupSubscriptions: string[];
   //
 
   constructor({ subscribeEndpoint, leaveEndpoint, heartbeatEndpoint, setStateEndpoint, timeEndpoint, config, crypto, listenerManager }: SubscriptionManagerConsturct) {
@@ -116,7 +116,7 @@ export default class {
     const { timetoken, channels = [], channelGroups = [], withPresence = false } = args;
 
     if (!this._config.subscribeKey || this._config.subscribeKey === '') {
-      if (console && console.log) console.log('subscribe key missing; aborting subscribe') //eslint-disable-line
+      if (console && console.log) console.log('subscribe key missing; aborting subscribe'); // eslint-disable-line
       return;
     }
 
@@ -191,39 +191,39 @@ export default class {
     this.adaptUnsubscribeChange({ channels: this.getSubscribedChannels(), channelGroups: this.getSubscribedChannelGroups() }, isOffline);
   }
 
-  getSubscribedChannels(): Array<string> {
+  getSubscribedChannels(): string[] {
     return Object.keys(this._channels);
   }
 
-  getSubscribedChannelGroups(): Array<string> {
+  getSubscribedChannelGroups(): string[] {
     return Object.keys(this._channelGroups);
   }
 
   reconnect() {
-    this._startSubscribeLoop();
-    this._registerHeartbeatTimer();
+    this.startSubscribeLoop();
+    this.registerHeartbeatTimer();
   }
 
   disconnect() {
-    this._stopSubscribeLoop();
-    this._stopHeartbeatTimer();
+    this.stopSubscribeLoop();
+    this.stopHeartbeatTimer();
     this._reconnectionManager.stopPolling();
   }
 
-  _registerHeartbeatTimer() {
-    this._stopHeartbeatTimer();
-    this._performHeartbeatLoop();
-    this._heartbeatTimer = setInterval(this._performHeartbeatLoop.bind(this), this._config.getHeartbeatInterval() * 1000);
+  private registerHeartbeatTimer() {
+    this.stopHeartbeatTimer();
+    this.performHeartbeatLoop();
+    this._heartbeatTimer = setInterval(this.performHeartbeatLoop.bind(this), this._config.getHeartbeatInterval() * 1000);
   }
 
-  _stopHeartbeatTimer() {
+  private stopHeartbeatTimer() {
     if (this._heartbeatTimer) {
       clearInterval(this._heartbeatTimer);
       this._heartbeatTimer = null;
     }
   }
 
-  _performHeartbeatLoop() {
+  private performHeartbeatLoop() {
     let presenceChannels = Object.keys(this._channels);
     let presenceChannelGroups = Object.keys(this._channelGroups);
     let presenceState = {};
@@ -258,8 +258,8 @@ export default class {
       state: presenceState }, onHeartbeat.bind(this));
   }
 
-  _startSubscribeLoop() {
-    this._stopSubscribeLoop();
+  private startSubscribeLoop() {
+    this.stopSubscribeLoop();
     let channels = [];
     let channelGroups = [];
 
@@ -281,14 +281,14 @@ export default class {
       region: this._region
     };
 
-    this._subscribeCall = this._subscribeEndpoint(subscribeArgs, this._processSubscribeResponse.bind(this));
+    this._subscribeCall = this._subscribeEndpoint(subscribeArgs, this.processSubscribeResponse.bind(this));
   }
 
-  _processSubscribeResponse(status: StatusAnnouncement, payload: SubscribeEnvelope) {
+  private processSubscribeResponse(status: StatusAnnouncement, payload: SubscribeEnvelope) {
     if (status.error) {
       // if we timeout from server, restart the loop.
       if (status.category === categoryConstants.PNTimeoutCategory) {
-        this._startSubscribeLoop();
+        this.startSubscribeLoop();
       } else if (status.category === categoryConstants.PNNetworkIssuesCategory) {
         // we lost internet connection, alert the reconnection manager and terminate all loops
         this.disconnect();
@@ -307,7 +307,7 @@ export default class {
         this._reconnectionManager.startPolling();
         this._listenerManager.announceStatus(status);
       } else if (status.category === categoryConstants.PNBadRequestCategory) {
-        this._stopHeartbeatTimer();
+        this.stopHeartbeatTimer();
         this._listenerManager.announceStatus(status);
       } else {
         this._listenerManager.announceStatus(status);
@@ -424,10 +424,10 @@ export default class {
     });
 
     this._region = payload.metadata.region;
-    this._startSubscribeLoop();
+    this.startSubscribeLoop();
   }
 
-  _stopSubscribeLoop() {
+  private stopSubscribeLoop() {
     if (this._subscribeCall) {
       this._subscribeCall.abort();
       this._subscribeCall = null;

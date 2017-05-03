@@ -57,7 +57,7 @@ export interface InternalSetupStruct {
   db: DatabaseInterface; // get / set implementation to store data
   networking: any; // component of networking to use
   sdkFamily: string;
-  listenToBrowserNetworkEvents?: boolean // option only available for web distribution
+  listenToBrowserNetworkEvents?: boolean; // option only available for web distribution
 }
 
 export interface DatabaseInterface {
@@ -83,8 +83,8 @@ export interface EndpointDefinition {
 
 export interface StateChangeAnnouncement {
   state: Object;
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
 }
 
 // ****************** SUBSCRIPTIONS ********************************************
@@ -115,7 +115,7 @@ export class SubscribeMessage {
 
 // subscribe responses
 export interface SubscribeEnvelope {
-  messages: Array<SubscribeMessage>;
+  messages: SubscribeMessage[];
   metadata: SubscribeMetadata;
 }
 
@@ -134,8 +134,8 @@ export class PresenceAnnouncement {
   timetoken: number;
   userMetadata: Object;
   action?: string;
-  join?: Array<string>;
-  leave?: Array<string>;
+  join?: string[];
+  leave?: string[];
   timeout?: any;
   constructor () {}
 }
@@ -161,8 +161,8 @@ export class StatusAnnouncement {
   lastTimetoken: number;
   currentTimetoken: number;
   // send back channel, channel groups that were affected by this operation
-  affectedChannels: Array<String>;
-  affectedChannelGroups: Array<String>;
+  affectedChannels: string[];
+  affectedChannelGroups: string[];
   subscribedChannels?: any;
   constructor() {}
 }
@@ -173,7 +173,7 @@ export class StatusAnnouncement {
 
 export interface TimeResponse {
   timetoken: number;
-};
+}
 
 // history
 export interface FetchHistoryArguments {
@@ -187,7 +187,7 @@ export interface FetchHistoryArguments {
 }
 
 export interface FetchMessagesArguments {
-  channels: Array<string>; // fetch history from a channel
+  channels: string[]; // fetch history from a channel
   start: number | string; // start timetoken for history fetching
   end: number | string; // end timetoken for history fetching
   count: number;
@@ -203,7 +203,7 @@ export interface HistoryItem {
 }
 
 export interface HistoryResponse {
-  messages: Array<HistoryItem>;
+  messages: HistoryItem[];
   startTimeToken: number | string;
   endTimeToken: number | string;
 }
@@ -215,12 +215,12 @@ export interface HistoryV3Response {
 // CG endpoints
 
 export interface AddChannelParams {
-  channels: Array<string>;
+  channels: string[];
   channelGroup: string;
 }
 
 export interface RemoveChannelParams {
-  channels: Array<string>;
+  channels: string[];
   channelGroup: string;
 }
 
@@ -229,7 +229,7 @@ export interface DeleteGroupParams {
 }
 
 export interface ListAllGroupsResponse {
-  groups: Array<string>;
+  groups: string[];
 }
 
 export interface ListChannelsParams {
@@ -237,7 +237,7 @@ export interface ListChannelsParams {
 }
 
 export interface ListChannelsResponse {
-  channels: Array<string>;
+  channels: string[];
 }
 
 // push
@@ -246,39 +246,39 @@ export interface ProvisionDeviceArgs {
   operation: 'add' | 'remove';
   pushGateway: 'gcm' | 'apns' | 'mpns';
   device: string;
-  channels: Array<string>;
-};
+  channels: string[];
+}
 
 export interface ModifyDeviceArgs {
   pushGateway: 'gcm' | 'apns' | 'mpns';
   device: string;
-  channels: Array<string>;
-};
+  channels: string[];
+}
 
 export interface ListChannelsArgs {
   pushGateway: 'gcm' | 'apns' | 'mpns';
   device: string;
-};
+}
 
 export interface RemoveDeviceArgs {
   pushGateway: 'gcm' | 'apns' | 'mpns';
   device: string;
-};
+}
 
 export interface ListPushChannelsResponse {
-  channels: Array<string>;
+  channels: string[];
 }
 
 // presence
 
 export interface LeaveArguments {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
 }
 
 export interface HereNowArguments {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
   includeUUIDs: boolean;
   includeState: boolean;
 }
@@ -288,15 +288,15 @@ export interface WhereNowArguments {
 }
 
 export interface WhereNowResponse {
-  channels: Array<string>;
+  channels: string[];
 }
 
 //
 
 export interface GetStateArguments {
   uuid: string;
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
 }
 
 export interface GetStateResponse {
@@ -306,8 +306,8 @@ export interface GetStateResponse {
 //
 
 export interface SetStateArguments {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
   state: Object;
 }
 
@@ -317,16 +317,16 @@ export interface SetStateResponse {
 
 
 export interface HeartbeatArguments {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
   state: Object;
 }
 
 // subscribe
 
 export interface SubscribeArguments {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
   timetoken: number;
   filterExpression?: string;
   region?: string;
@@ -337,24 +337,24 @@ export interface SubscribeArguments {
 export interface AuditArguments {
   channel: string;
   channelGroup: string;
-  authKeys: Array<string>;
+  authKeys: string[];
 }
 
 export interface GrantArguments {
-  channels: Array<string>;
-  channelGroups: Array<string>;
+  channels: string[];
+  channelGroups: string[];
   ttl: number;
   read: boolean;
   write: boolean;
   manage: boolean;
-  authKeys: Array<string>;
+  authKeys: string[];
 }
 
 // publish
 
 export interface PublishResponse {
   timetoken: number;
-};
+}
 
 export interface PublishArguments {
   message: Object | string | number | boolean; // the contents of the dispatch

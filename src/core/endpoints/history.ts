@@ -2,7 +2,7 @@ import { FetchHistoryArguments, HistoryResponse, HistoryItem, ModulesInject } fr
 import operationConstants from '../constants/operations';
 import * as utils from '../utils';
 
-function __processMessage(modules, message: Object): Object | null {
+function processMessage(modules, message: Object): Object | null {
   let { config, crypto } = modules;
   if (!config.cipherKey) return message;
 
@@ -64,7 +64,7 @@ export function handleResponse(modules: ModulesInject, serverResponse: FetchHist
   serverResponse[0].forEach((serverHistoryItem) => {
     const item: HistoryItem = {
       timetoken: serverHistoryItem.timetoken,
-      entry: __processMessage(modules, serverHistoryItem.message)
+      entry: processMessage(modules, serverHistoryItem.message)
     };
 
     response.messages.push(item);

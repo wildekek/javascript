@@ -2,7 +2,7 @@ import { FetchMessagesArguments, FetchMessagesResponse, MessageAnnouncement, His
 import operationConstants from '../constants/operations';
 import * as utils from '../utils';
 
-function __processMessage(modules, message: Object): Object | null {
+function processMessage(modules, message: Object): Object | null {
   let { config, crypto } = modules;
   if (!config.cipherKey) return message;
 
@@ -65,7 +65,7 @@ export function handleResponse(modules: ModulesInject, serverResponse: HistoryV3
       announce.channel = channelName;
       announce.subscription = null;
       announce.timetoken = messageEnvelope.timetoken;
-      announce.message = __processMessage(modules, messageEnvelope.message);
+      announce.message = processMessage(modules, messageEnvelope.message);
       response.channels[channelName].push(announce);
     });
   });

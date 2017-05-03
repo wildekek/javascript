@@ -69,7 +69,7 @@ function xdr(xhr: any, method: string, url: string, params: Object, body: Object
   xhr.onerror = (e) => {
     status.error = true;
     status.errorData = e.error;
-    status.category = this._detectErrorCategory(e.error);
+    status.category = this.detectErrorCategory(e.error);
     return callback(status, null);
   };
 

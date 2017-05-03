@@ -1,16 +1,16 @@
 import Config from '../config';
-import { HmacSHA256, enc, SHA256, mode, AES } from './hmac-sha256';
+import { hmacsha256, enc, sha256, mode, AES } from './hmac-sha256';
 
 export interface CryptoConstruct {
-  config: Config,
+  config: Config;
 }
 
 export default class {
   _config: Config;
   _iv: string;
-  _allowedKeyEncodings: Array<string>;
-  _allowedKeyLengths: Array<number>;
-  _allowedModes: Array<string>;
+  _allowedKeyEncodings: string[];
+  _allowedKeyLengths: number[];
+  _allowedModes: string[];
   _defaultOptions: any;
 
   constructor({ config }: CryptoConstruct) {
@@ -30,16 +30,16 @@ export default class {
     };
   }
 
-  HMACSHA256(data: string): string {
-    let hash = HmacSHA256(data, this._config.secretKey);
+  hmacsha256(data: string): string {
+    let hash = hmacsha256(data, this._config.secretKey);
     return hash.toString(enc.Base64);
   }
 
-  SHA256(s: string): string {
-    return SHA256(s).toString(enc.Hex);
+  sha256(s: string): string {
+    return sha256(s).toString(enc.Hex);
   }
 
-  _parseOptions(incomingOptions?: any): Object {
+  private parseOptions(incomingOptions?: any): Object {
     // Defaults
     let options = incomingOptions || {};
     if (!options.hasOwnProperty('encryptKey')) options.encryptKey = this._defaultOptions.encryptKey;
@@ -63,7 +63,7 @@ export default class {
     return options;
   }
 
-  _decodeKey(key: string, options: any): string {
+  private decodeKey(key: string, options: any): string {
     if (options.keyEncoding === 'base64') {
       return enc.Base64.parse(key);
     } else if (options.keyEncoding === 'hex') {
@@ -73,16 +73,16 @@ export default class {
     }
   }
 
-  _getPaddedKey(key: string, options: any): string {
-    key = this._decodeKey(key, options);
+  private getPaddedKey(key: string, options: any): string {
+    key = this.decodeKey(key, options);
     if (options.encryptKey) {
-      return enc.Utf8.parse(this.SHA256(key).slice(0, 32));
+      return enc.Utf8.parse(this.sha256(key).slice(0, 32));
     } else {
       return key;
     }
   }
 
-  _getMode(options: any): string {
+  private getMode(options: any): string {
     if (options.mode === 'ecb') {
       return mode.ECB;
     } else {
@@ -90,7 +90,7 @@ export default class {
     }
   }
 
-  _getIV(options: any): string | null {
+  private getIV(options: any): string | null {
     return (options.mode === 'cbc') ? enc.Utf8.parse(this._iv) : null;
   }
 
@@ -112,10 +112,10 @@ export default class {
 
   pnEncrypt(data: string, customCipherKey?: string, options?: Object): Object | string | null {
     if (!customCipherKey && !this._config.cipherKey) return data;
-    options = this._parseOptions(options);
-    let iv = this._getIV(options);
-    let mode = this._getMode(options);
-    let cipherKey = this._getPaddedKey(customCipherKey || this._config.cipherKey, options);
+    options = this.parseOptions(options);
+    let iv = this.getIV(options);
+    let mode = this.getMode(options);
+    let cipherKey = this.getPaddedKey(customCipherKey || this._config.cipherKey, options);
     let encryptedHexArray = AES.encrypt(data, cipherKey, { iv, mode }).ciphertext;
     let base64Encrypted = encryptedHexArray.toString(enc.Base64);
     return base64Encrypted || data;
@@ -123,10 +123,10 @@ export default class {
 
   pnDecrypt(data: Object, customCipherKey?: string, options?: Object): Object | null {
     if (!customCipherKey && !this._config.cipherKey) return data;
-    options = this._parseOptions(options);
-    let iv = this._getIV(options);
-    let mode = this._getMode(options);
-    let cipherKey = this._getPaddedKey(customCipherKey || this._config.cipherKey, options);
+    options = this.parseOptions(options);
+    let iv = this.getIV(options);
+    let mode = this.getMode(options);
+    let cipherKey = this.getPaddedKey(customCipherKey || this._config.cipherKey, options);
     try {
       let ciphertext = enc.Base64.parse(data);
       let plainJSON = AES.decrypt({ ciphertext }, cipherKey, { iv, mode }).toString(enc.Utf8);

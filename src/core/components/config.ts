@@ -103,8 +103,8 @@ export default class {
   /*
     support customp encryption and decryption functions.
   */
-  customEncrypt: Function // function to support custome encryption of messages
-  customDecrypt: Function // function used to decrypt old version messages
+  customEncrypt: Function; // function to support custome encryption of messages
+  customDecrypt: Function; // function used to decrypt old version messages
 
   constructor({ setup, db } : ConfigConstructArgs) {
     this._db = db;
@@ -159,7 +159,7 @@ export default class {
       this.setHeartbeatInterval(setup.heartbeatInterval);
     }
 
-    this.setUUID(this._decideUUID(setup.uuid)); // UUID decision depends on subKey.
+    this.setUUID(this.decideUUID(setup.uuid)); // UUID decision depends on subKey.
   }
 
   // exposed setters
@@ -200,7 +200,7 @@ export default class {
     return '4.9.1';
   }
 
-  _decideUUID(providedUUID: string): string {
+  private decideUUID(providedUUID: string): string {
     // if the uuid was provided by setup, use this UUID.
     if (providedUUID) {
       return providedUUID;

@@ -53,7 +53,7 @@ export function prepareParams({ config }: ModulesInject, incomingParams: Subscri
 }
 
 export function handleResponse(modules: ModulesInject, serverResponse: any): SubscribeEnvelope {
-  const messages: Array<SubscribeMessage> = [];
+  const messages: SubscribeMessage[] = [];
 
   serverResponse.m.forEach((rawMessage) => {
     let publishMetaData: PublishMetaData = {

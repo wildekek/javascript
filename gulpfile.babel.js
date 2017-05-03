@@ -8,6 +8,7 @@ const clean = require('gulp-clean');
 const gulpWebpack = require('webpack-stream');
 const webpackConfig = require('./webpack.config');
 const eslint = require('gulp-eslint');
+const tslint = require('gulp-tslint');
 const uglify = require('gulp-uglify');
 const rename = require('gulp-rename');
 const exec = require('child_process').exec;
@@ -97,9 +98,8 @@ gulp.task('uglify_titanium', () => {
 
 gulp.task('lint_code', [], () => {
   return gulp.src(['src/**/*.ts'])
-      .pipe(eslint())
-      .pipe(eslint.format())
-      .pipe(eslint.failAfterError());
+    .pipe(tslint({ formatter: 'verbose' }))
+    .pipe(tslint.report())
 });
 
 gulp.task('lint_tests', [], () => {

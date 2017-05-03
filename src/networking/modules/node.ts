@@ -11,19 +11,19 @@ export function proxy(superagentConstruct: superagent) {
 }
 
 export function keepAlive(superagentConstruct: superagent) {
-  let AgentClass = null;
+  let AGENT_CLASS = null;
   let agent = null;
 
   if (this._config.secure) {
-    AgentClass = AgentKeepAlive.HttpsAgent;
+    AGENT_CLASS = AgentKeepAlive.HttpsAgent;
   } else {
-    AgentClass = AgentKeepAlive;
+    AGENT_CLASS = AgentKeepAlive;
   }
 
   if (this._config.keepAliveSettings) {
-    agent = new AgentClass(this._config.keepAliveSettings);
+    agent = new AGENT_CLASS(this._config.keepAliveSettings);
   } else {
-    agent = new AgentClass();
+    agent = new AGENT_CLASS();
   }
 
   return superagentConstruct.agent(agent);
