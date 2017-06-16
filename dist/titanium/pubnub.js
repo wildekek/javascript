@@ -1,4 +1,4 @@
-/*! 4.11.0.beta1 / Consumer  */
+/*! 4.11.0-beta.1 / Consumer  */
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
 		module.exports = factory();
